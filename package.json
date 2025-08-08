@@ -1,0 +1,13 @@
+{
+  "name": "superparticles",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "start": "esbuild --serve=8000 --servedir=."
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0",
+    "typescript": "^5.4.0"
+  }
+} 

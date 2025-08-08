@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>SuperParticles demo</title>
+    <style>
+      html,body,#sp{ margin:0;padding:0;width:100%;height:100%;display:block; }
+      #sp{ position:fixed;inset:0; }
+    </style>
+  </head>
+  <body>
+    <canvas id="sp"></canvas>
+    <script type="module">
+      import { init } from '../dist/superparticles.min.js';
+      init(document.getElementById('sp'));
+    </script>
+  </body>
+</html> 
