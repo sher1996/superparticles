@@ -11,8 +11,10 @@
   <body>
     <canvas id="sp"></canvas>
     <script type="module">
-      import { init } from '../dist/superparticles.min.js';
-      init(document.getElementById('sp'));
+      import { init } from '../dist/index.js';
+      const canvas = document.getElementById('sp');
+      const strongGPU = !!canvas.getContext('webgl2') && navigator.hardwareConcurrency > 4;
+      init(canvas, { useWebGL: strongGPU });
     </script>
   </body>
 </html> 
