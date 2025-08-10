@@ -1,0 +1,5 @@
+{
+  "fireworks-force": "/dist/plugins/FireworksForce.js",
+  "gravity-well-force": "/dist/plugins/GravityWellForce.js",
+  "gravity-well-shader": "/dist/plugins/GravityWellShader.js"
+} 

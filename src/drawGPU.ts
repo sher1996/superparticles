@@ -3,6 +3,14 @@ export async function drawGPU(canvas: HTMLCanvasElement, opts: any) {
   const device = await adapter!.requestDevice();
   const ctx = canvas.getContext('webgpu') as GPUCanvasContext;
   
+  // Import shaders from plugin system
+  const { shaders, shaderPlugins, loadPlugins } = await import('./plugin.js');
+  
+  // Wait for plugins to load if not deterministic
+  if (!opts.deterministic) {
+    await loadPlugins({ deterministic: opts.deterministic });
+  }
+  
   // Configure swap chain
   const canvasFormat = navigator.gpu!.getPreferredCanvasFormat();
   ctx.configure({
@@ -12,8 +20,18 @@ export async function drawGPU(canvas: HTMLCanvasElement, opts: any) {
   });
 
   // Load shader module
+  let shaderCode = await loadShaderCode();
+  if (shaderPlugins.length > 0) {
+    const plugin = shaderPlugins[shaderPlugins.length - 1];
+    if (plugin.wgsl) {
+      shaderCode = plugin.wgsl;
+    }
+  } else if (shaders.length > 0) {
+    shaderCode = shaders[shaders.length - 1];
+  }
+  
   const shaderMod = device.createShaderModule({
-    code: await loadShaderCode(),
+    code: shaderCode,
   });
 
   // Storage buffer for particles
@@ -29,14 +47,19 @@ export async function drawGPU(canvas: HTMLCanvasElement, opts: any) {
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  // Initialize particle data
+  // Initialize particle data with deterministic seeding if requested
   const particleData = new Float32Array(N * 4);
+  const deterministic = opts.deterministic || false;
+  const rngSeed = 1337;
+  let seed = rngSeed;
+  const rand = () => (seed ^= seed << 13, seed ^= seed >> 17, seed ^= seed << 5) >>> 0 / 2**32;
+  
   for (let i = 0; i < N; i++) {
     const idx = i * 4;
-    particleData[idx] = Math.random() * canvas.width;     // pos.x
-    particleData[idx + 1] = Math.random() * canvas.height; // pos.y
-    particleData[idx + 2] = (Math.random() - 0.5) * 2;   // vel.x
-    particleData[idx + 3] = (Math.random() - 0.5) * 2;   // vel.y
+    particleData[idx] = (deterministic ? rand() : Math.random()) * canvas.width;     // pos.x
+    particleData[idx + 1] = (deterministic ? rand() : Math.random()) * canvas.height; // pos.y
+    particleData[idx + 2] = (deterministic ? rand() - 0.5 : Math.random() - 0.5) * 2;   // vel.x
+    particleData[idx + 3] = (deterministic ? rand() - 0.5 : Math.random() - 0.5) * 2;   // vel.y
   }
   device.queue.writeBuffer(particleBuf, 0, particleData);
 
@@ -147,11 +170,13 @@ export async function drawGPU(canvas: HTMLCanvasElement, opts: any) {
         let h: f32 = uniforms.h;
 
         p.pos += p.vel * dt;
-        if (p.pos.x < 0.0)  { p.pos.x += w; }
-        if (p.pos.x > w)    { p.pos.x -= w; }
-        if (p.pos.y < 0.0)  { p.pos.y += h; }
-        if (p.pos.y > h)    { p.pos.y -= h; }
-
+        // Bounce-and-clamp edges
+        let elasticity: f32 = 0.9;
+        if (p.pos.x < 0.0)  { p.pos.x = 0.0; p.vel.x = -p.vel.x * elasticity; }
+        if (p.pos.x > w)    { p.pos.x = w;   p.vel.x = -p.vel.x * elasticity; }
+        if (p.pos.y < 0.0)  { p.pos.y = 0.0; p.vel.y = -p.vel.y * elasticity; }
+        if (p.pos.y > h)    { p.pos.y = h;   p.vel.y = -p.vel.y * elasticity; }
+        
         particles[i] = p;
       }
 

@@ -1,13 +1,14 @@
 /* SuperParticles – WebGL2 Renderer */
 
-import { initArrays, stepPhysics, pos, N, dt, Options } from './core';
+import { initArrays, stepPhysics, pos, dt, Options, getParticleCount } from './core';
+import { getActiveShaders, getActiveShaderPlugins } from './plugin.js';
 
 const vertexShaderSource = `#version 300 es
 in vec2 aPos;
 uniform float uDPR;
 void main() {
   gl_Position = vec4(aPos, 0.0, 1.0);
-  gl_PointSize = 1.0 * uDPR;
+  gl_PointSize = 10.0 * uDPR; // larger for visibility
 }
 `;
 
@@ -20,9 +21,9 @@ void main() {
 }
 `;
 
-export function initWebGL2(
+export async function initWebGL2(
   canvas: HTMLCanvasElement,
-  { color = '#70c1ff', speed = 40 }: Options = {},
+  { color = '#70c1ff', speed = 40, deterministic = false }: Options = {},
 ) {
   const gl = canvas.getContext('webgl2')!;
   if (!gl) {
@@ -40,22 +41,50 @@ export function initWebGL2(
 
   // Create shaders
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-  const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+  
+  // Wait for plugins to load if not deterministic
+  if (!deterministic) {
+    const { loadPlugins } = await import('./plugin.js');
+    await loadPlugins({ deterministic });
+  }
+  
+  // Use active shader plugin if available, otherwise fall back to legacy shaders or default
+  let fragShader = fragmentShaderSource;
+  const activeShaderPlugins = getActiveShaderPlugins();
+  if (activeShaderPlugins.length > 0) {
+    const plugin = activeShaderPlugins[activeShaderPlugins.length - 1];
+    if (plugin.glsl) {
+      fragShader = plugin.glsl;
+    }
+  } else {
+    const activeShaders = getActiveShaders();
+    if (activeShaders.length > 0) {
+      fragShader = activeShaders[activeShaders.length - 1];
+    }
+  }
+  
+  const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragShader);
   const program = createProgram(gl, vertexShader, fragmentShader);
 
   // Get attribute and uniform locations
   const positionLocation = gl.getAttribLocation(program, 'aPos');
   const dprLocation = gl.getUniformLocation(program, 'uDPR');
   const colorLocation = gl.getUniformLocation(program, 'uCol');
+  const resolutionLocation = gl.getUniformLocation(program, 'uResolution');
 
-  // Create buffer
+  // Create buffer and VAO (WebGL2 requires a VAO for vertex attribs)
   const positionBuffer = gl.createBuffer();
+  const vao = gl.createVertexArray();
+  gl.bindVertexArray(vao);
+  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
   // Pre-allocate clip-space buffer
-  const clip = new Float32Array(N * 2);
+  const clip = new Float32Array(getParticleCount() * 2);
 
   // Initialize arrays
-  initArrays(canvas.width, canvas.height, speed);
+  initArrays(canvas.width, canvas.height, speed, deterministic);
 
   // Convert color to RGBA
   const colorRGBA = hexToRgba(color);
@@ -65,7 +94,7 @@ export function initWebGL2(
     acc += Math.min(now - prev, 100);
     
     // Clear
-    gl.clearColor(0, 0, 0, 0.1);
+  gl.clearColor(0, 0, 0, 1.0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
@@ -78,7 +107,8 @@ export function initWebGL2(
 
     // Convert pixel coords to clip-space
     const w = canvas.width, h = canvas.height;
-    for (let i = 0; i < N; i++) {
+    const currentN = getParticleCount();
+    for (let i = 0; i < currentN; i++) {
       const ix = i << 1;
       clip[ix] = (pos[ix] / w) * 2.0 - 1.0;
       clip[ix + 1] = (pos[ix + 1] / h) * 2.0 - 1.0;
@@ -90,15 +120,17 @@ export function initWebGL2(
     // Set uniforms
     gl.uniform1f(dprLocation, dpr);
     gl.uniform4f(colorLocation, colorRGBA.r, colorRGBA.g, colorRGBA.b, colorRGBA.a);
+    if (resolutionLocation) {
+      gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
+    }
 
     // Upload clip-space buffer
+    gl.bindVertexArray(vao);
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, clip, gl.DYNAMIC_DRAW);
-    gl.enableVertexAttribArray(positionLocation);
-    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
     // Draw points
-    gl.drawArrays(gl.POINTS, 0, N);
+    gl.drawArrays(gl.POINTS, 0, currentN);
 
     prev = now;
     id = requestAnimationFrame(frame);
