@@ -13,7 +13,7 @@ Ultra‑light TypeScript canvas scaffold with plugin system and playground.
 ## Quick Start
 
 ### Interactive Playground
-Try the [live playground](https://your-domain.com/playground) to experiment with:
+Try the [live playground](playground/index.html) to experiment with:
 - Real-time parameter adjustments
 - Plugin system (forces, shaders)
 - Preset sharing via URLs
