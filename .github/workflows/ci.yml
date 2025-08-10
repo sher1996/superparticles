@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build
+      run: npm run build
+    
+    - name: Run tests
+      run: npm test
+    
+    - name: Check bundle size
+      run: |
+        # Check if core bundle is under 15KB gzipped
+        gzip_size=$(gzip -c dist/index.js | wc -c)
+        echo "Gzipped size: ${gzip_size} bytes"
+        if [ $gzip_size -gt 15360 ]; then
+          echo "❌ Bundle size exceeds 15KB limit"
+          exit 1
+        else
+          echo "✅ Bundle size within limit"
+        fi
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: dist/
