@@ -1,6 +1,6 @@
 {
   "name": "superparticles",
-  "version": "0.0.1",
+  "version": "0.1.0-alpha",
   "type": "module",
   "scripts": {
     "build": "node build.js",
@@ -11,4 +11,4 @@
     "typescript": "^5.4.0",
     "rollup-plugin-filesize": "^10.0.0"
   }
-} 
+}
