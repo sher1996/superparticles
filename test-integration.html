@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SuperParticles Integration Test</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #1a1a1a; 
+            color: #fff; 
+        }
+        .container { 
+            display: flex; 
+            gap: 20px; 
+        }
+        .controls { 
+            flex: 0 0 300px; 
+        }
+        .canvas-container { 
+            flex: 1; 
+        }
+        .test-section { 
+            margin: 15px 0; 
+            padding: 15px; 
+            border: 1px solid #333; 
+            border-radius: 8px; 
+        }
+        button { 
+            background: #4CAF50; 
+            color: white; 
+            padding: 8px 12px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 3px; 
+            font-size: 12px; 
+        }
+        button:hover { background: #45a049; }
+        .output { 
+            background: #2a2a2a; 
+            padding: 8px; 
+            border-radius: 4px; 
+            margin: 8px 0; 
+            font-family: monospace; 
+            font-size: 11px; 
+            max-height: 200px; 
+            overflow-y: auto; 
+        }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+        canvas { 
+            border: 1px solid #333; 
+            background: #000; 
+        }
+        .status { 
+            padding: 10px; 
+            background: #2a2a2a; 
+            border-radius: 4px; 
+            margin: 10px 0; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 SuperParticles Integration Test</h1>
+    
+    <div class="container">
+        <div class="controls">
+            <div class="test-section">
+                <h3>🎮 Particle System Controls</h3>
+                <button onclick="initParticles()">Initialize Particles</button>
+                <button onclick="stopParticles()">Stop Particles</button>
+                <div class="status" id="system-status">System: Not initialized</div>
+            </div>
+
+            <div class="test-section">
+                <h3>⚙️ API Testing</h3>
+                <button onclick="testSpeedChange()">Change Speed</button>
+                <button onclick="testParticleCount()">Change Count</button>
+                <button onclick="testDeterministic()">Toggle Deterministic</button>
+                <button onclick="exportCurrentState()">Export State</button>
+                <button onclick="importTestState()">Import Test State</button>
+                <div class="output" id="api-output"></div>
+            </div>
+
+            <div class="test-section">
+                <h3>📊 Current Settings</h3>
+                <div id="current-settings" class="output">No settings loaded</div>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <h3>🎨 Particle Canvas</h3>
+            <canvas id="particleCanvas" width="600" height="400"></canvas>
+            <div class="output" id="canvas-output">Canvas ready</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { init, setOptions, exportState, importState } from './src/index.js';
+        
+        let engine = null;
+        let currentSettings = {
+            color: '#70c1ff',
+            speed: 40,
+            particleCount: 1000,
+            deterministic: false
+        };
+
+        // Global functions for testing
+        window.initParticles = async function() {
+            const output = document.getElementById('canvas-output');
+            const status = document.getElementById('system-status');
+            
+            try {
+                output.innerHTML = '<span class="info">🔄 Initializing particle system...</span>';
+                status.innerHTML = 'System: Initializing...';
+                
+                const canvas = document.getElementById('particleCanvas');
+                engine = await init(canvas, currentSettings);
+                
+                output.innerHTML = '<span class="success">✅ Particle system initialized!</span>';
+                status.innerHTML = 'System: Running';
+                
+                updateSettingsDisplay();
+                
+            } catch (error) {
+                output.innerHTML = `<span class="error">❌ Initialization failed: ${error.message}</span>`;
+                status.innerHTML = 'System: Failed';
+            }
+        };
+
+        window.stopParticles = function() {
+            const output = document.getElementById('canvas-output');
+            const status = document.getElementById('system-status');
+            
+            if (engine) {
+                engine.stop();
+                engine = null;
+                output.innerHTML = '<span class="info">⏹️ Particle system stopped</span>';
+                status.innerHTML = 'System: Stopped';
+            } else {
+                output.innerHTML = '<span class="error">❌ No system running</span>';
+            }
+        };
+
+        window.testSpeedChange = function() {
+            const output = document.getElementById('api-output');
+            try {
+                const newSpeed = Math.floor(Math.random() * 100) + 20;
+                setOptions({ speed: newSpeed });
+                currentSettings.speed = newSpeed;
+                output.innerHTML = `<span class="success">✅ Speed changed to: ${newSpeed}</span>`;
+                updateSettingsDisplay();
+            } catch (error) {
+                output.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        };
+
+        window.testParticleCount = function() {
+            const output = document.getElementById('api-output');
+            try {
+                const newCount = Math.floor(Math.random() * 3000) + 500;
+                setOptions({ particleCount: newCount });
+                currentSettings.particleCount = newCount;
+                output.innerHTML = `<span class="success">✅ Particle count changed to: ${newCount}</span>`;
+                updateSettingsDisplay();
+            } catch (error) {
+                output.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        };
+
+        window.testDeterministic = function() {
+            const output = document.getElementById('api-output');
+            try {
+                const newDeterministic = !currentSettings.deterministic;
+                setOptions({ deterministic: newDeterministic });
+                currentSettings.deterministic = newDeterministic;
+                output.innerHTML = `<span class="success">✅ Deterministic: ${newDeterministic}</span>`;
+                updateSettingsDisplay();
+            } catch (error) {
+                output.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        };
+
+        window.exportCurrentState = function() {
+            const output = document.getElementById('api-output');
+            try {
+                const state = exportState();
+                output.innerHTML = `<span class="success">✅ State exported:</span>\n${JSON.stringify(state, null, 2)}`;
+            } catch (error) {
+                output.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        };
+
+        window.importTestState = function() {
+            const output = document.getElementById('api-output');
+            try {
+                const testState = { 
+                    speed: 80, 
+                    particleCount: 1500, 
+                    deterministic: true,
+                    color: '#ff6b6b' 
+                };
+                importState(testState);
+                currentSettings = { ...currentSettings, ...testState };
+                output.innerHTML = `<span class="success">✅ Test state imported:</span>\n${JSON.stringify(testState, null, 2)}`;
+                updateSettingsDisplay();
+            } catch (error) {
+                output.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+            }
+        };
+
+        function updateSettingsDisplay() {
+            const display = document.getElementById('current-settings');
+            display.innerHTML = `Speed: ${currentSettings.speed}\nParticles: ${currentSettings.particleCount}\nDeterministic: ${currentSettings.deterministic}\nColor: ${currentSettings.color}`;
+        }
+
+        // Initialize display
+        updateSettingsDisplay();
+        
+        console.log('🧪 Integration test page loaded');
+        console.log('Available functions:', { init, setOptions, exportState, importState });
+    </script>
+</body>
+</html>

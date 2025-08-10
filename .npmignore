@@ -1,0 +1,25 @@
+# Source files
+/src/
+/playground/
+/plugins/
+
+# Tests
+test-*.js
+test-*.html
+
+# Development files
+build.js
+tsconfig.json
+*.ts
+
+# Documentation
+/docs/
+README.md
+CODE_OF_CONDUCT.md
+
+# Git
+.git/
+.gitignore
+
+# Misc
+tatus
