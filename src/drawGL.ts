@@ -1,33 +1,36 @@
 /* SuperParticles – WebGL2 Renderer */
 
-import { initArrays, stepPhysics, pos, dt, Options, getParticleCount } from './core';
-import { getActiveShaders, getActiveShaderPlugins } from './plugin.js';
+import { initArrays, stepPhysics, pos, dt, style, setBounds, getParticleCount } from './core.js';
+import { currentGLSL, getShaderVersion } from './plugin.js';
+import { hexToRgba } from './color.js';
 
 const vertexShaderSource = `#version 300 es
 in vec2 aPos;
-uniform float uDPR;
+uniform float uSize;
 void main() {
   gl_Position = vec4(aPos, 0.0, 1.0);
-  gl_PointSize = 10.0 * uDPR; // larger for visibility
+  gl_PointSize = uSize;
 }
 `;
 
-const fragmentShaderSource = `#version 300 es
+const defaultFragmentSource = `#version 300 es
 precision mediump float;
 uniform vec4 uCol;
 out vec4 fragColor;
 void main() {
+  // round particles
+  if (length(gl_PointCoord - 0.5) > 0.5) discard;
   fragColor = uCol;
 }
 `;
 
-export async function initWebGL2(
+export function initWebGL2(
   canvas: HTMLCanvasElement,
-  { color = '#70c1ff', speed = 40, deterministic = false }: Options = {},
+  { speed = 40, deterministic = false, particleCount = 1000 } = {},
 ) {
-  const gl = canvas.getContext('webgl2')!;
+  const gl = canvas.getContext('webgl2');
   if (!gl) {
-    throw new Error('WebGL2 not supported');
+    throw new Error('WebGL2 unavailable (unsupported, or the canvas already uses another context type)');
   }
 
   const dpr = devicePixelRatio || 1;
@@ -35,110 +38,97 @@ export async function initWebGL2(
     canvas.width = innerWidth * dpr;
     canvas.height = innerHeight * dpr;
     gl.viewport(0, 0, canvas.width, canvas.height);
+    setBounds(canvas.width, canvas.height);
   };
-  addEventListener('resize', resize);
   resize();
+  addEventListener('resize', resize);
 
-  // Create shaders
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-  
-  // Wait for plugins to load if not deterministic
-  if (!deterministic) {
-    const { loadPlugins } = await import('./plugin.js');
-    await loadPlugins({ deterministic });
-  }
-  
-  // Use active shader plugin if available, otherwise fall back to legacy shaders or default
-  let fragShader = fragmentShaderSource;
-  const activeShaderPlugins = getActiveShaderPlugins();
-  if (activeShaderPlugins.length > 0) {
-    const plugin = activeShaderPlugins[activeShaderPlugins.length - 1];
-    if (plugin.glsl) {
-      fragShader = plugin.glsl;
-    }
-  } else {
-    const activeShaders = getActiveShaders();
-    if (activeShaders.length > 0) {
-      fragShader = activeShaders[activeShaders.length - 1];
-    }
-  }
-  
-  const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragShader);
-  const program = createProgram(gl, vertexShader, fragmentShader);
 
-  // Get attribute and uniform locations
-  const positionLocation = gl.getAttribLocation(program, 'aPos');
-  const dprLocation = gl.getUniformLocation(program, 'uDPR');
-  const colorLocation = gl.getUniformLocation(program, 'uCol');
-  const resolutionLocation = gl.getUniformLocation(program, 'uResolution');
+  let program!: WebGLProgram;
+  let sizeLoc: WebGLUniformLocation | null = null;
+  let colorLoc: WebGLUniformLocation | null = null;
+  let resolutionLoc: WebGLUniformLocation | null = null;
+  let builtVersion = -1;
 
-  // Create buffer and VAO (WebGL2 requires a VAO for vertex attribs)
   const positionBuffer = gl.createBuffer();
   const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
-  gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
 
-  // Pre-allocate clip-space buffer
-  const clip = new Float32Array(getParticleCount() * 2);
+  function buildProgram() {
+    builtVersion = getShaderVersion();
+    let next: WebGLProgram;
+    try {
+      next = createProgram(gl!, vertexShader, createShader(gl!, gl!.FRAGMENT_SHADER, currentGLSL() ?? defaultFragmentSource));
+    } catch (error) {
+      console.error('SuperParticles: shader plugin failed, using default shader', error);
+      next = createProgram(gl!, vertexShader, createShader(gl!, gl!.FRAGMENT_SHADER, defaultFragmentSource));
+    }
+    if (program) gl!.deleteProgram(program);
+    program = next;
+    sizeLoc = gl!.getUniformLocation(program, 'uSize');
+    colorLoc = gl!.getUniformLocation(program, 'uCol');
+    resolutionLoc = gl!.getUniformLocation(program, 'uResolution');
 
-  // Initialize arrays
-  initArrays(canvas.width, canvas.height, speed, deterministic);
+    const positionLoc = gl!.getAttribLocation(program, 'aPos');
+    gl!.bindVertexArray(vao);
+    gl!.bindBuffer(gl!.ARRAY_BUFFER, positionBuffer);
+    gl!.enableVertexAttribArray(positionLoc);
+    gl!.vertexAttribPointer(positionLoc, 2, gl!.FLOAT, false, 0, 0);
+  }
+  buildProgram();
 
-  // Convert color to RGBA
-  const colorRGBA = hexToRgba(color);
+  initArrays(canvas.width, canvas.height, speed, deterministic, particleCount);
 
+  let clip = new Float32Array(getParticleCount() * 2);
   let acc = 0, prev = performance.now(), id = 0;
+
   function frame(now: number) {
     acc += Math.min(now - prev, 100);
-    
-    // Clear
-  gl.clearColor(0, 0, 0, 1.0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
-    gl.enable(gl.BLEND);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    prev = now;
 
-    // Update physics
     while (acc >= dt * 1000) {
       stepPhysics(canvas.width, canvas.height);
       acc -= dt * 1000;
     }
 
-    // Convert pixel coords to clip-space
+    if (builtVersion !== getShaderVersion()) buildProgram();
+
+    const n = getParticleCount();
+    if (clip.length !== n * 2) clip = new Float32Array(n * 2);
+
+    // Pixel coords (y down) to clip space (y up)
     const w = canvas.width, h = canvas.height;
-    const currentN = getParticleCount();
-    for (let i = 0; i < currentN; i++) {
+    for (let i = 0; i < n; i++) {
       const ix = i << 1;
-      clip[ix] = (pos[ix] / w) * 2.0 - 1.0;
-      clip[ix + 1] = (pos[ix + 1] / h) * 2.0 - 1.0;
+      clip[ix]     = (pos[ix] / w) * 2 - 1;
+      clip[ix + 1] = 1 - (pos[ix + 1] / h) * 2;
     }
 
-    // Use program
-    gl.useProgram(program);
+    gl!.clearColor(0, 0, 0, 1);
+    gl!.clear(gl!.COLOR_BUFFER_BIT);
+    gl!.enable(gl!.BLEND);
+    gl!.blendFunc(gl!.SRC_ALPHA, gl!.ONE_MINUS_SRC_ALPHA);
 
-    // Set uniforms
-    gl.uniform1f(dprLocation, dpr);
-    gl.uniform4f(colorLocation, colorRGBA.r, colorRGBA.g, colorRGBA.b, colorRGBA.a);
-    if (resolutionLocation) {
-      gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
-    }
+    gl!.useProgram(program);
+    const c = hexToRgba(style.color);
+    gl!.uniform1f(sizeLoc, Math.max(1, style.size * dpr));
+    gl!.uniform4f(colorLoc, c.r, c.g, c.b, c.a);
+    if (resolutionLoc) gl!.uniform2f(resolutionLoc, w, h);
 
-    // Upload clip-space buffer
-    gl.bindVertexArray(vao);
-    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, clip, gl.DYNAMIC_DRAW);
+    gl!.bindVertexArray(vao);
+    gl!.bindBuffer(gl!.ARRAY_BUFFER, positionBuffer);
+    gl!.bufferData(gl!.ARRAY_BUFFER, clip, gl!.DYNAMIC_DRAW);
+    gl!.drawArrays(gl!.POINTS, 0, n);
 
-    // Draw points
-    gl.drawArrays(gl.POINTS, 0, currentN);
-
-    prev = now;
     id = requestAnimationFrame(frame);
   }
   id = requestAnimationFrame(frame);
 
   return {
-    stop() { cancelAnimationFrame(id); removeEventListener('resize', resize); },
+    stop() {
+      cancelAnimationFrame(id);
+      removeEventListener('resize', resize);
+    },
   };
 }
 
@@ -146,11 +136,11 @@ function createShader(gl: WebGL2RenderingContext, type: number, source: string):
   const shader = gl.createShader(type)!;
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
-  
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    throw new Error('Shader compilation error: ' + gl.getShaderInfoLog(shader));
+    const log = gl.getShaderInfoLog(shader);
+    gl.deleteShader(shader);
+    throw new Error('Shader compilation error: ' + log);
   }
-  
   return shader;
 }
 
@@ -159,20 +149,9 @@ function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLShader, fr
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
-  
+  gl.deleteShader(fragmentShader); // stays alive while attached
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     throw new Error('Program linking error: ' + gl.getProgramInfoLog(program));
   }
-  
   return program;
 }
-
-function hexToRgba(hex: string): { r: number, g: number, b: number, a: number } {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16) / 255,
-    g: parseInt(result[2], 16) / 255,
-    b: parseInt(result[3], 16) / 255,
-    a: 1.0
-  } : { r: 0.44, g: 0.76, b: 1.0, a: 1.0 }; // Default to #70c1ff
-} 
