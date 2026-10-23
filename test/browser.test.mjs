@@ -133,3 +133,89 @@ test('switching renderers repeatedly does not duplicate plugin forces', async ()
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+async function openFixture(opts = {}) {
+  const page = await browser.newPage({ viewport: { width: 800, height: 600 }, ...opts });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`${base}/test/fixtures/blank.html`);
+  return { page, errors };
+}
+
+test('two engines on one page are independent', async () => {
+  const { page, errors } = await openFixture();
+  const r = await page.evaluate(async () => {
+    const { createEngine } = await import('/dist/index.js');
+    const mk = (w, h) => {
+      const c = document.createElement('canvas');
+      c.style.width = w + 'px';
+      c.style.height = h + 'px';
+      document.body.append(c);
+      return c;
+    };
+    const a = await createEngine(mk(300, 200), { particleCount: 100, autoplay: false, deterministic: true });
+    const b = await createEngine(mk(300, 200), { particleCount: 400, autoplay: false, deterministic: true, useWebGL: true });
+    a.setPluginEnabled('force', 'gravity-well-force', true);
+    a.step(10);
+    b.setOptions({ color: '#ff0000' });
+    const out = {
+      counts: [a.sim.count, b.sim.count],
+      plugins: [a.getPluginState().forces, b.getPluginState().forces],
+      steps: [a.getStep(), b.getStep()],
+      colors: [a.exportState().color, b.exportState().color],
+      renderers: [a.renderer, b.renderer],
+    };
+    a.stop(); b.stop();
+    return out;
+  });
+  assert.deepEqual(r.counts, [100, 400]);
+  assert.deepEqual(r.plugins, [['gravity-well-force'], []]);
+  assert.deepEqual(r.steps, [10, 0]);
+  assert.deepEqual(r.colors, ['#70c1ff', '#ff0000']);
+  assert.deepEqual(r.renderers, ['canvas2d', 'webgl2']);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('fixed world replays identically on different canvas sizes and renderers', async () => {
+  const hashes = [];
+  for (const [w, h, useWebGL] of [[400, 300, false], [1000, 500, true], [250, 700, false]]) {
+    const { page } = await openFixture();
+    hashes.push(await page.evaluate(async ([w, h, useWebGL]) => {
+      const { createEngine } = await import('/dist/index.js');
+      const c = document.createElement('canvas');
+      c.style.width = w + 'px';
+      c.style.height = h + 'px';
+      document.body.append(c);
+      const e = await createEngine(c, { world: { width: 800, height: 600 }, deterministic: true, autoplay: false, useWebGL });
+      e.step(120);
+      e.setPluginEnabled('force', 'fireworks-force', true);
+      e.step(240);
+      return e.stateHash();
+    }, [w, h, useWebGL]));
+    await page.close();
+  }
+  assert.equal(new Set(hashes).size, 1, `hashes differ: ${hashes}`);
+});
+
+test('reduced motion: engine starts paused and still draws a frame', async () => {
+  const { page } = await openFixture({ reducedMotion: 'reduce' });
+  const r = await page.evaluate(async () => {
+    const { createEngine } = await import('/dist/index.js');
+    const c = document.createElement('canvas');
+    c.style.width = '200px';
+    c.style.height = '200px';
+    document.body.append(c);
+    const e = await createEngine(c, { deterministic: true });
+    await new Promise(r => setTimeout(r, 300));
+    const pausedStep = e.getStep();
+    const lit = c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0);
+    e.resume();
+    await new Promise(r => setTimeout(r, 300));
+    return { paused: pausedStep, after: e.getStep(), lit };
+  });
+  assert.equal(r.paused, 0);
+  assert.ok(r.after > 0, 'resume() should start the loop');
+  assert.ok(r.lit, 'a still frame should be drawn');
+  await page.close();
+});
