@@ -1,14 +1,33 @@
 {
   "name": "superparticles",
   "version": "0.1.0-alpha",
+  "description": "Ultra-light TypeScript particle engine with Canvas2D, WebGL2 and WebGPU renderers and a plugin system",
+  "license": "MIT",
   "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/types/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/src/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
   "scripts": {
     "build": "node build.js",
-    "start": "esbuild --serve=8000 --servedir=."
+    "start": "esbuild --serve=8000 --servedir=.",
+    "typecheck": "tsc -p .",
+    "test": "node --test test/core.test.mjs",
+    "test:browser": "node --test test/browser.test.mjs"
   },
   "devDependencies": {
+    "@webgpu/types": "^0.1.69",
     "esbuild": "^0.23.0",
-    "typescript": "^5.4.0",
-    "rollup-plugin-filesize": "^10.0.0"
+    "playwright": "^1.63.0",
+    "typescript": "^5.4.0"
   }
 }

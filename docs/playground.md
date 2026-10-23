@@ -1,62 +1,50 @@
 # SuperParticles Playground
 
-The SuperParticles playground provides an interactive interface to experiment with particle system parameters and plugins.
+The playground lets you try particle settings and plugins interactively. To run it, build and serve the repo (`npm run build && npm start`), then open <http://localhost:8000/playground/>.
 
 ## Controls
 
-### Renderer Selection
-- **Canvas2D**: CPU-based rendering, compatible everywhere
-- **WebGL2**: GPU-accelerated rendering, modern browsers
-- **WebGPU**: Next-gen GPU rendering, experimental
+### Renderer
+- **Canvas2D**: CPU drawing, works everywhere.
+- **WebGL2**: GPU drawing with round particles and shader plugins.
+- **WebGPU**: GPU drawing with shader plugins. This is experimental and needs a browser with WebGPU enabled.
 
-### Speed Slider
-- Range: 1-100
-- Changes particle motion speed instantly
-- Affects all active force plugins
+If a renderer isn't available, the playground falls back (WebGPU → WebGL2 → Canvas2D) and shows a note under the buttons.
 
-### Particle Count
-- Range: 100-5000 particles
-- Can be adjusted while running
-- Automatically resizes buffers without crashes or memory leaks
+### Speed
+- Range: 1–100.
+- Rescales particle velocities immediately.
 
-### Deterministic Toggle
-- When enabled: identical preset links render identically on any machine
-- Uses fixed random seed for reproducible behavior
-- Essential for sharing consistent presets
+### Particles
+- Range: 100–20,000.
+- Can be changed while running. Existing particles stay where they are and new ones spawn across the whole canvas.
 
-### Color Picker
-- Changes particle color in real-time
-- Supports any valid CSS color value
+### Size
+- Particle size in CSS pixels (1–8).
+
+### Deterministic
+- When on, particles respawn from a fixed seed, so the same preset gives the same starting layout on any machine.
+- Toggling it re-scatters the particles.
+
+### Color
+- Changes the particle color immediately in every renderer.
 
 ## Plugins
 
-### Force Plugins
-- **Fireworks Force**: Creates explosive outward forces
-- **Gravity Well Force**: Attracts particles to center points
+### Force plugins
+- **Fireworks Force**: pushes particles outward from the center.
+- **Gravity Well Force**: pulls particles toward the center.
 
-### Shader Plugins
-- **Gravity Well Shader**: Visual shader effects for gravity wells
+Turning both on makes them roughly cancel out.
+
+### Shader plugins
+- **Gravity Well Shader**: makes particles dimmer the closer they are to the center. Works in WebGL2 and WebGPU only, since Canvas2D has no shaders.
 
 ## Presets
 
-### Copy Preset URL
-- Captures current settings and active plugins
-- Encodes configuration in URL hash
-- Share exact configurations with others
-
-### Reset
-- Restores default settings
-- Clears all active plugins
-- Returns to Canvas2D renderer
+- **Copy URL**: encodes the current settings and active plugins into the URL hash, so you can share them.
+- **Reset**: restores the defaults, turns off all plugins and switches back to Canvas2D.
 
 ## Persistence
 
-- All settings automatically save to localStorage
-- Plugin states are preserved between sessions
-- Preset URLs work across different machines
-
-## Performance
-
-- FPS counter shows real-time performance
-- Particle count automatically adjusts for device capabilities
-- Renderer switching maintains visual consistency
+Settings and active plugins are saved to `localStorage` and restored on the next visit. A preset URL overrides the saved settings.

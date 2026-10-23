@@ -1,9 +1,12 @@
 import { build } from 'esbuild';
-import { copyFileSync } from 'fs';
-import { execSync } from 'child_process';
+import { copyFileSync, mkdirSync, readFileSync, statSync } from 'fs';
+import { gzipSync } from 'zlib';
+import { execFileSync } from 'child_process';
 
-// Build main source files
-await build({
+const GZIP_BUDGET = 15000; // bytes, for everything a Canvas2D page loads
+
+// Library: entry + lazily loaded renderer/plugin chunks
+const result = await build({
   entryPoints: ['src/index.ts'],
   outdir: 'dist',
   bundle: true,
@@ -11,10 +14,12 @@ await build({
   format: 'esm',
   splitting: true,
   chunkNames: 'chunks/[name]-[hash]',
-  target: ['es2020'], // needed for async/await in drawGPU
+  target: ['es2020'],
+  loader: { '.wgsl': 'text' },
+  metafile: true,
 });
 
-// Build plugin files
+// Standalone plugin files, as examples for third-party authors
 await build({
   entryPoints: ['plugins/FireworksForce.ts', 'plugins/GravityWellForce.ts', 'plugins/GravityWellShader.ts'],
   outdir: 'dist/plugins',
@@ -23,67 +28,27 @@ await build({
   format: 'esm',
   target: ['es2020'],
 });
-
-// Build playground files
-await build({
-  entryPoints: ['playground/app.ts'],
-  outdir: 'dist/playground',
-  bundle: false,
-  minify: false,
-  format: 'esm',
-  target: ['es2022'],
-});
-
-// Copy playground files to dist folder
-copyFileSync('playground/index.html', 'dist/playground/index.html');
-copyFileSync('playground/ui.css', 'dist/playground/ui.css');
-
-// Copy manifest file to dist folder
+mkdirSync('dist/plugins', { recursive: true });
 copyFileSync('plugins/manifest.json', 'dist/plugins/manifest.json');
 
-// Check bundle sizes
+// Type declarations for consumers
+execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', '.', '--noEmit', 'false', '--declaration', '--emitDeclarationOnly', '--outDir', 'dist/types'], { stdio: 'inherit' });
+
+// Size report
+const kb = n => (n / 1024).toFixed(1) + 'KB';
+const gz = file => gzipSync(readFileSync(file)).length;
+
 console.log('\n📦 Bundle Size Report:');
-try {
-  const mainSize = execSync('node -e "console.log(require(\'fs\').statSync(\'dist/index.js\').size)"', { encoding: 'utf8' }).trim();
-  const mainSizeKB = Math.round(parseInt(mainSize) / 1024);
-  console.log(`Main bundle: ${mainSizeKB}KB`);
-  
-  // Bundle budget fail-gate: check gzipped size
-  try {
-    const gzippedSize = execSync('gzip -c dist/index.js | wc -c', { encoding: 'utf8' }).trim();
-    const gzippedSizeBytes = parseInt(gzippedSize);
-    const gzippedSizeKB = Math.round(gzippedSizeBytes / 1024);
-    console.log(`Main bundle (gzipped): ${gzippedSizeKB}KB (${gzippedSizeBytes} bytes)`);
-    
-    if (gzippedSizeBytes > 15000) {
-      console.error(`❌ Bundle budget exceeded: ${gzippedSizeBytes} bytes > 15000 bytes limit`);
-      process.exit(1);
-    }
-  } catch (e) {
-    console.log('⚠️  Could not check gzipped size (gzip command not available)');
-  }
-  
-  if (parseInt(mainSize) > 50 * 1024) {
-    console.log('⚠️  Warning: Main bundle exceeds 50KB target');
-  }
-  
-  // Check plugin sizes
-  const pluginFiles = ['FireworksForce.js', 'GravityWellForce.js', 'GravityWellShader.js'];
-  for (const file of pluginFiles) {
-    try {
-      const size = execSync(`node -e "console.log(require('fs').statSync('dist/plugins/${file}').size)"`, { encoding: 'utf8' }).trim();
-      const sizeKB = Math.round(parseInt(size) / 1024);
-      console.log(`Plugin ${file}: ${sizeKB}KB`);
-      
-      if (parseInt(size) > 50 * 1024) {
-        console.log(`⚠️  Warning: Plugin ${file} exceeds 50KB target`);
-      }
-    } catch (e) {
-      // Plugin file doesn't exist, skip
-    }
-  }
-} catch (e) {
-  console.log('Could not generate bundle size report');
+let total = 0;
+for (const file of Object.keys(result.metafile.outputs).sort()) {
+  const size = gz(file);
+  console.log(`  ${file.padEnd(44)} ${kb(statSync(file).size).padStart(8)}  (${kb(size)} gzipped)`);
+  if (!/drawGL|drawGPU/.test(file)) total += size; // GPU renderers are only loaded when chosen
+}
+console.log(`  Core + Canvas2D + plugins: ${total} bytes gzipped (budget ${GZIP_BUDGET})`);
+if (total > GZIP_BUDGET) {
+  console.error(`❌ Bundle budget exceeded: ${total} > ${GZIP_BUDGET} bytes`);
+  process.exit(1);
 }
 
-console.log('\n✅ Build complete!'); 
+console.log('\n✅ Build complete!');
