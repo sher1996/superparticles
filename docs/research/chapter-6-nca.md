@@ -68,18 +68,29 @@ Double buffering matters: each cell must read the previous generation. Updating 
 
 _Filled in from `training/runs/*/metrics.json` once training completes; see `STATUS.md`._
 
-## 6. What this is, and what it isn't
+## 6. Moving smart particles (research prototype)
+
+Grid NCAs only recolour cells that stay in place. To get closer to "particles that can form anything", `training/swarm.py` gives each particle a **position** and a 12-channel **state**:
+
+- **Sensing**: neighbours within radius R = 0.22 (in a [-1, 1]² world), each weighted by (1 - d/R)². From those, a particle computes its own state, the weighted mean of neighbour states, the weighted mean of (offset/R)·state in x and y (where which state is, analogous to the Sobel filters on a grid), and the log local density. That gives 49 inputs.
+- **Acting**: one shared network (49 → 96 → 14, 6,144 weights) outputs a state change and a velocity. The move per step is bounded by 0.03·tanh(v), so long rollouts stay stable.
+- **Training**: start from a shapeless blob. The loss is the Chamfer distance to points sampled from the target, plus a colour term (each particle should match its nearest target point). Pool training as on the grid, with "throw a region's particles to random places" as the damage.
+- **Runtime**: `SwarmCPU` (O(N²), fine for the 256 particles it is trained with) matches PyTorch to 1e-4 in position. `playground/swarm.html` lets you scatter particles by clicking.
+
+What the prototype tests is whether one local rule can steer freely moving units into a shape and back after disruption. It does not yet handle collisions, particle birth and death, or 3D.
+
+## 7. What this is, and what it isn't
 
 - It **is** a working, reproducible instance of learned local behaviour: growth, persistence and repair of one specific target, from one shared rule.
 - It is **not** general "form anything" intelligence. A model grows the target it was trained on. Growing a new shape means training a new model (minutes to hours), or the conditional models planned in the roadmap.
 - It is **not** consciousness. "Each particle has a mind" means each cell runs a small learned rule on its own private state.
-- The cells live on a **grid**. Freely moving smart particles (point-cloud NCA) are a separate, open research step (see `ROADMAP.md`).
+- The grid models' cells don't move. The moving swarm (section 6) is an early prototype, not a finished feature.
 
-## 7. Open questions for the next chapters
+## 8. Open questions for the next chapters
 
 1. Smallest model that still heals visibly (fewer hidden units, or 8-bit weights) for an even lighter embed.
 2. Training directly in the browser with WebGPU, so creators can teach their own image without Python.
-3. Turning grid cells into free particles, where the rule also outputs motion and neighbourhoods are found by spatial hashing.
+3. Scaling the swarm beyond a few hundred particles: spatial hashing instead of O(N²) neighbour search, and a GPU implementation.
 4. One model for several goals (conditional NCA), and what that costs in size and accuracy.
 5. A first 3D export format beyond PLY point clouds, such as a glTF animation or a VDB volume sequence.
 
