@@ -33,6 +33,9 @@
     "./nca": {
       "types": "./dist/types/src/nca/index.d.ts",
       "import": "./dist/nca.js"
+    },
+    "./embed": {
+      "import": "./dist/embed.js"
     }
   },
   "files": [

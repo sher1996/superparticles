@@ -400,3 +400,52 @@ test('training page: upload an image, train, stop, and hand the model to Smart P
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+test('one-script embed starts particles and Smart Particles from data attributes', async () => {
+  const { page, errors } = await openFixture();
+  await page.evaluate(() => {
+    document.body.innerHTML = `
+      <canvas id="a" data-superparticles data-count="300" data-color="#ff0000" data-renderer="webgl2" data-plugins="gravity-well-force" style="width:300px;height:200px"></canvas>`;
+    const s = document.createElement('script');
+    s.type = 'module';
+    s.src = '/dist/embed.js';
+    document.body.append(s);
+  });
+  await page.waitForFunction(() => document.getElementById('a').superparticles);
+  // canvases added later are picked up too
+  await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.id = 'b';
+    c.dataset.smartParticles = '';
+    c.dataset.model = '/models/heart.nca.json';
+    c.dataset.backend = 'cpu';
+    c.style.cssText = 'width:200px;height:200px';
+    document.body.append(c);
+  });
+  await page.waitForFunction(() => document.getElementById('b').smartParticles, null, { timeout: 30000 });
+  const r = await page.evaluate(() => {
+    const a = document.getElementById('a').superparticles, b = document.getElementById('b').smartParticles;
+    return { count: a.sim.count, color: a.exportState().color, renderer: a.renderer, forces: a.getPluginState().forces, backend: b.backend };
+  });
+  assert.deepEqual(r, { count: 300, color: '#ff0000', renderer: 'webgl2', forces: ['gravity-well-force'], backend: 'cpu' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('Smart Particles page records a video and produces embed code', async () => {
+  const page = await browser.newPage({ viewport: { width: 1100, height: 700 }, acceptDownloads: true });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`${base}/playground/smart.html?backend=webgl2`);
+  await page.waitForFunction(() => window.smart && window.smart.getStep() > 5, null, { timeout: 60000 });
+  const download = page.waitForEvent('download', { timeout: 30000 });
+  await page.click('#record');
+  const file = await download;
+  assert.match(file.suggestedFilename(), /^smart-particles-.*\.(webm|mp4)$/);
+  await page.click('#embed').catch(() => {});
+  const code = await page.evaluate(() => window.__embedCode);
+  assert.match(code, /data-smart-particles data-model="http[^"]+heart\.nca\.json"/);
+  assert.match(code, /dist\/embed\.js/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});

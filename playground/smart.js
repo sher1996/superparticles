@@ -110,6 +110,48 @@ $("channel").oninput = (e) => {
   sp.setView(c === 3 ? "rgba" : "hidden", c);
 };
 
+// ---- share: video + embed code ----
+$("record").onclick = () => {
+  const canvas = $("nca");
+  if (!canvas.captureStream || typeof MediaRecorder === "undefined") {
+    $("share-note").textContent = "Recording isn't supported in this browser.";
+    return;
+  }
+  const type = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"].find((t) => MediaRecorder.isTypeSupported(t));
+  const rec = new MediaRecorder(canvas.captureStream(30), type ? { mimeType: type } : undefined);
+  const chunks = [];
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    const blob = new Blob(chunks, { type: rec.mimeType });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `smart-particles-${sp.model.name}.${rec.mimeType.includes("mp4") ? "mp4" : "webm"}`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    $("record").disabled = false;
+    $("share-note").textContent = `Saved ${(blob.size / 1024).toFixed(0)} KB video.`;
+  };
+  if (sp.paused) { sp.resume(); syncPlay(); }
+  rec.start(250);
+  $("record").disabled = true;
+  $("share-note").textContent = "Recording… cut some holes!";
+  setTimeout(() => rec.stop(), 8000);
+};
+
+$("embed").onclick = async () => {
+  const m = MODELS.find((x) => x.id === $("model-select").value) ?? MODELS[0];
+  const modelUrl = typeof m.url === "string" ? new URL(m.url, location.href).href : "https://your-site.example/models/custom.nca.json";
+  const code = `<canvas data-smart-particles data-model="${modelUrl}" style="width:400px;height:400px"></canvas>\n` +
+    `<script type="module" src="https://cdn.jsdelivr.net/npm/superparticles@0.2.0-alpha.1/dist/embed.js"></` + `script>`;
+  try {
+    await navigator.clipboard.writeText(code);
+    $("share-note").textContent = "Embed code copied. Host the model file next to your page; the CDN link works once the package is published to npm.";
+  } catch {
+    prompt("Copy this embed code:", code);
+  }
+  window.__embedCode = code;
+};
+
 // Mark pointer damage too (the canvas cuts holes itself)
 document.addEventListener("pointerdown", (e) => { if (e.target.id === "nca") markDamage(); });
 

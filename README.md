@@ -29,6 +29,16 @@ Then open:
 
 The pages use ES modules, so they must be served over HTTP (opening them as `file://` won't work).
 
+## Embed on any website
+
+```html
+<canvas data-superparticles data-count="2000" data-renderer="webgl2" style="width:100%;height:300px"></canvas>
+<canvas data-smart-particles data-model="/models/heart.nca.json" style="width:400px;height:400px"></canvas>
+<script type="module" src="https://cdn.jsdelivr.net/npm/superparticles@0.2.0-alpha.1/dist/embed.js"></script>
+```
+
+The embed script is 0.7 KB. It loads the engine or Smart Particles only for canvases that ask for them, and also picks up canvases added later. Attributes: `data-count`, `data-size`, `data-speed`, `data-color`, `data-renderer`, `data-deterministic`, `data-plugins`. For Smart Particles: `data-model`, `data-backend`, `data-seed`, `data-steps-per-frame`, `data-interactive`. The CDN link works once the package is published to npm. Until then, serve `dist/embed.js` yourself. The Smart Particles page can also record an 8-second video and copy embed code.
+
 ## Particle engine
 
 ```javascript

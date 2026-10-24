@@ -5,11 +5,11 @@ import { execFileSync } from 'child_process';
 
 const GZIP_BUDGET = 15000; // bytes, for everything a Canvas2D page loads
 // Loaded only on demand: GPU renderers and the optional Smart Particles (NCA) entry
-const OPTIONAL = /drawGL|drawGPU|nca|webgl2|webgpu|cpu-/;
+const OPTIONAL = /drawGL|drawGPU|nca|webgl2|webgpu|cpu-|embed/;
 
 // Library: entry + lazily loaded renderer/plugin chunks
 const result = await build({
-  entryPoints: ['src/index.ts', { in: 'src/nca/index.ts', out: 'nca' }],
+  entryPoints: ['src/index.ts', { in: 'src/nca/index.ts', out: 'nca' }, 'src/embed.ts'],
   outdir: 'dist',
   bundle: true,
   minify: true,
