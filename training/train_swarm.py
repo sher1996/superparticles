@@ -67,7 +67,7 @@ def main():
             p0, s0 = blob(1, args.particles, gen)
             pos[:1], st[:1] = p0, s0                     # worst -> fresh blob
             if step > 200:
-                pos[-2:] = scatter(pos[-2:], gen)        # best -> scattered (learn to reassemble)
+                pos[-1:] = scatter(pos[-1:], gen)        # best -> scattered (learn to reassemble)
         n = random.randint(*args.rollout)
         for _ in range(n):
             pos, st = model(pos, st)

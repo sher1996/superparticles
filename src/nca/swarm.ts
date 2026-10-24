@@ -107,16 +107,20 @@ export class SwarmCPU {
     this.step = 0;
   }
 
-  /** Throw the particles within `r` of (x, y) to random places (positions in [-1, 1]). */
-  scatter(x: number, y: number, r: number) {
+  /**
+   * Push the particles within `r` of (x, y) up to `push` away in random directions
+   * (positions in [-1, 1]). This matches the damage used in training, which keeps
+   * particles within sensing range of the swarm so they can find their way back.
+   */
+  scatter(x: number, y: number, r: number, push = 0.35) {
     let k = 0;
     for (let i = 0; i < this.n; i++) {
       const dx = this.pos[2 * i] - x, dy = this.pos[2 * i + 1] - y;
       if (dx * dx + dy * dy >= r * r) continue;
-      const h1 = hash01(this.seed ^ 0x9e3779b9, i, this.step, k++);
-      const h2 = hash01(this.seed ^ 0x7f4a7c15, i, this.step, k++);
-      this.pos[2 * i] = h1 * 2 - 1;
-      this.pos[2 * i + 1] = h2 * 2 - 1;
+      const ang = hash01(this.seed ^ 0x9e3779b9, i, this.step, k++) * 2 * Math.PI;
+      const rad = push * Math.sqrt(hash01(this.seed ^ 0x7f4a7c15, i, this.step, k++));
+      this.pos[2 * i] = Math.min(1, Math.max(-1, this.pos[2 * i] + Math.cos(ang) * rad));
+      this.pos[2 * i + 1] = Math.min(1, Math.max(-1, this.pos[2 * i + 1] + Math.sin(ang) * rad));
     }
   }
 

@@ -74,8 +74,11 @@ def blob(batch, n, generator=None, spread=0.08):
     return pos, state
 
 
-def scatter(pos, generator=None, frac=0.3):
-    """Damage: throw a random contiguous region's particles to random places."""
+def scatter(pos, generator=None, frac=0.3, push=0.35):
+    """Damage: push a random contiguous region's particles up to `push` away.
+    (Throwing them anywhere in the world stranded them out of sensing range,
+    where a particle receives no information about the shape, so training
+    could never learn to bring them back.)"""
     out = pos.clone()
     b, n, _ = pos.shape
     for i in range(b):
@@ -83,7 +86,9 @@ def scatter(pos, generator=None, frac=0.3):
         d = (pos[i] - centre).norm(dim=-1)
         k = int(n * frac)
         idx = d.argsort()[:k]
-        out[i, idx] = torch.rand(k, 2, generator=generator) * 2 - 1
+        ang = torch.rand(k, generator=generator) * 2 * math.pi
+        rad = push * torch.rand(k, generator=generator).sqrt()
+        out[i, idx] = (out[i, idx] + torch.stack([ang.cos(), ang.sin()], -1) * rad[:, None]).clamp(-1, 1)
     return out
 
 
