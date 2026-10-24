@@ -28,6 +28,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="training/runs/swarm-heart")
     ap.add_argument("--resume", action="store_true")
+    ap.add_argument("--reseed", type=int, default=2, help="fresh blobs per batch (keeps the pool from filling with tangled states)")
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -55,6 +56,7 @@ def main():
 
     log = open(out / "log.jsonl", "a")
     t0 = time.time()
+    recent, best = [], float("inf")  # keep the checkpoint with the best recent Chamfer, not just the last
     for step in range(start, args.steps):
         for g in opt.param_groups:
             g["lr"] = lr_schedule(step, args.steps, args.lr)
@@ -64,8 +66,8 @@ def main():
             per, _ = loss_fn(pos, st, tpts, tcol)
             order = per.argsort(descending=True)
             pos, st, idx = pos[order], st[order], idx[order]
-            p0, s0 = blob(1, args.particles, gen)
-            pos[:1], st[:1] = p0, s0                     # worst -> fresh blob
+            p0, s0 = blob(args.reseed, args.particles, gen)
+            pos[:args.reseed], st[:args.reseed] = p0, s0  # worst -> fresh blobs
             if step > 200:
                 pos[-1:] = scatter(pos[-1:], gen)        # best -> scattered (learn to reassemble)
         n = random.randint(*args.rollout)
@@ -82,6 +84,10 @@ def main():
         opt.step()
         with torch.no_grad():
             pos_pool[idx], st_pool[idx] = pos.detach(), st.detach()
+        recent = (recent + [ch.mean().item()])[-50:]
+        if step >= 300 and len(recent) == 50 and sum(recent) / 50 < best:
+            best = sum(recent) / 50
+            torch.save({"model": model.state_dict(), "step": step, "config": config, "recent_chamfer": best}, out / "best.pt")
         if step % 20 == 0 or step == args.steps - 1:
             rec = {"step": step, "loss": loss.item(), "chamfer": ch.mean().item(), "iters": n, "elapsed": round(time.time() - t0, 1)}
             log.write(json.dumps(rec) + "\n")
