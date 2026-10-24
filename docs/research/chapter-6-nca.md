@@ -66,7 +66,7 @@ Double buffering matters: each cell must read the previous generation. Updating 
 
 ## 5. Results
 
-**Heart, 64×64, 3,000 steps** (about 1.9 h of compute on 4 CPU cores; seed 0; `training/evaluate.py`, hashed mask seed 7):
+**Heart, 64×64, first 3,000 steps** (about 1.9 h of compute on 4 CPU cores; seed 0; `training/evaluate.py`, hashed mask seed 7):
 
 | Metric | Value | Gate |
 |---|---|---|
@@ -80,6 +80,8 @@ Double buffering matters: each cell must read the previous generation. Updating 
 **Reading these numbers honestly.** The model does what the chapter set out to show: a single seed grows into the heart, the shape stays stable for 1,000+ steps, and every tested hole regrows to about 95% of the undamaged shape. In the browser, a hole that removed 30% of the cells refilled completely within 150 steps. It misses the IoU gates for two reasons that are visible in `evaluation.png`: (1) a faint fringe of low-opacity cells just outside the edge counts as "alive" at the 0.1 threshold, and (2) the small pink highlight in the target is not reproduced. Both are known effects of a short training run (the original paper trains 8,000 steps on a GPU). The gates stay as they are; they were not relaxed to make this pass.
 
 **Continued to 5,000 steps** (same recipe, a further 1.5 h): growth IoU 0.766 → **0.821**, persistence 0.729 → **0.791**, recovery 0.731 → **0.790** (worst 0.731), holes recovered to ≥ 0.80: 0/16 → **9/16**, and recovery relative to its intact shape 95.4% → **96.3%**. It is now just short of both gates. More training is the obvious next step: the loss was still falling, and the original paper used 8,000 steps. A small loss term that discourages low-alpha fringe cells is another option, still to be tested.
+
+**Continued to 6,000 steps on longer runs (96–160 steps),** applying the lesson from the 3D model. Growth IoU **0.874**, persistence after 1,000 steps **0.880**, recovery IoU **0.858** (worst 0.791), with **15 of 16** holes recovered to ≥ 0.80 and 98% of the intact shape regrown. **Both gates pass.** Longer training runs mattered more than more steps: 1,000 steps on long runs gained more than the previous 2,000 on short ones.
 
 **3D planet, 16³ voxels.** After 1,500 steps trained on 32–48-step runs, it grew the planet well (IoU 0.92) but never learned to stop: by step 600 it had overgrown to 989 voxels (target 412, IoU 0.37). Continuing on 64–128-step runs fixed this within 200 steps: growth IoU **0.979**, persistence after 600 steps **0.951**, recovery after random holes **0.959** (worst 0.936), front half cut away **0.812**. **All gates passed.** The lesson: training runs must be longer than the time over which the shape has to stay stable.
 

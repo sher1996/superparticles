@@ -20,7 +20,7 @@ Status key: **done** (in `main` or the open PR, with tests), **next**, **planned
 | 5 | Playground and alpha | Playground, presets, state API, real tests, CI | done |
 | — | Groundwork | Per-engine isolation, exact replay, fixed world, reduced motion, hidden-tab pause, device loss | done |
 | 6A | Learn to grow | PyTorch NCA trainer, reference model, reproducible run | done |
-| 6B | Learn to recover | Damage training, recovery metrics | done: heals visibly; heart just short of the IoU gates (`STATUS.md`) |
+| 6B | Learn to recover | Damage training, recovery metrics | done: heart passes all gates (growth 0.87, recovery 0.86) |
 | 6C | Model format | Versioned file (float16, sha256), parity vectors, JS reference | done |
 | 6D | GPU brain | WebGPU compute and WebGL2 backends, double-buffered, exact | done |
 | 6E | Creator demo | `smart.html`: grow, damage, heal, hidden channels, recovery readout | done |

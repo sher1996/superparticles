@@ -43,11 +43,11 @@ This file separates what has been **verified** (by a test in this repo, or by a 
 
 | Model | Status | Metrics |
 |---|---|---|
-| `models/heart.nca.json` (2D, 64×64) | trained: 5,000 steps (3,000, then continued), about 3.4 h of compute on 4 CPU cores, 23 KB | growth IoU **0.82** (gate 0.85, **missed**), at alpha > 0.5 **0.93**; after 1,000 steps 0.79; recovery IoU **0.79** (gate 0.80, **missed** by 0.01), with 9 of 16 holes ≥ 0.80, worst 0.73, **96%** of its own undamaged shape; NaN-free ✓. The 3,000-step model scored 0.77 / 0.73. The remaining gap is the faint edge fringe and the unlearned highlight. |
+| `models/heart.nca.json` (2D, 64×64) | trained: 6,000 steps (3,000 + 2,000 on 64–96-step runs, then 1,000 on 96–160-step runs), about 4.9 h of compute on 4 CPU cores, 23 KB | growth IoU **0.87** (gate 0.85 ✓), at alpha > 0.5 0.95; after 1,000 steps **0.88**; recovery IoU **0.86** (gate 0.80 ✓), with 15 of 16 holes ≥ 0.80, worst 0.79, 98% of intact; NaN-free ✓. **Passes all gates.** Earlier checkpoints scored 0.77/0.73 (3,000) and 0.82/0.79 (5,000). |
 | `models/planet3d.nca.json` (3D, 16³) | trained: 1,500 steps on 32–48-step runs, then 200 more on 64–128-step runs (stopped early: it already passed), 22 KB | growth IoU **0.98** (gate 0.85 ✓), at alpha > 0.5 0.99; after 600 steps **0.95** (stable; the 1,500-step model had overgrown to 0.37); recovery IoU **0.96** (gate 0.80 ✓), worst 0.94, 98% of intact; front half cut away 0.81; NaN-free ✓. **Passes all gates.** |
 | `models/swarm-heart.swarm.json` (moving particles, 256) | research prototype, 6 training runs, best checkpoint at step 200, 18 KB | coverage of the target after 150 steps from a blob **0.50**; after 600 steps 0.36; after pushing a third of the swarm apart it regains **100%** of its intact coverage; NaN-free ✓. It forms a stable structured cloud and re-forms it, but **does not yet draw a recognisable heart**, colours are not learned, the shape slowly drifts, and training is unstable (coverage swings between 0.02 and 0.50 across checkpoints). |
 
-The gates from the research plan are growth IoU ≥ 0.85, recovery IoU ≥ 0.80 and NaN-free 1,000-step rollouts. They are measured by `training/evaluate.py` with the same hashed mask the browser uses.
+The gates from the research plan are growth IoU ≥ 0.85, recovery IoU ≥ 0.80 and NaN-free 1,000-step rollouts. **Both grid models (heart 2D, planet 3D) now pass all of them.** They are measured by `training/evaluate.py` with the same hashed mask the browser uses.
 
 ## Not yet verified
 
