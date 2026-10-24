@@ -117,10 +117,26 @@ async function initRenderer(rendererType) {
   }
 
   showRenderer(rendererType, handle.renderer);
+  syncPlay();
   saveState();
 }
 
+function syncPlay() {
+  const btn = $("play-toggle");
+  const paused = engineHandle?.engine.paused ?? false;
+  btn.textContent = paused ? "Play" : "Pause";
+  btn.setAttribute("aria-pressed", String(!paused));
+}
+
 function initControls() {
+  // Also the way to start motion when the viewer prefers reduced motion
+  $("play-toggle").onclick = () => {
+    const e = engineHandle?.engine;
+    if (!e) return;
+    e.paused ? e.resume() : e.pause();
+    syncPlay();
+  };
+
   document.querySelectorAll("[data-renderer]").forEach((btn) => {
     btn.onclick = () => initRenderer(btn.dataset.renderer);
   });

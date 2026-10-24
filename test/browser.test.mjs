@@ -219,3 +219,65 @@ test('reduced motion: engine starts paused and still draws a frame', async () =>
   assert.ok(r.lit, 'a still frame should be drawn');
   await page.close();
 });
+
+test('Smart Particles: WebGL2 and CPU backends match the PyTorch vectors in the browser', async () => {
+  const { page, errors } = await openFixture();
+  const r = await page.evaluate(async () => {
+    const { createSmartParticles } = await import('/dist/nca.js');
+    const doc = await (await fetch('/test/fixtures/random.nca.json')).json();
+    const vec = await (await fetch('/test/fixtures/random.vectors.json')).json();
+    const f32 = b64 => new Float32Array(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer);
+    const out = {};
+    for (const backend of ['webgl2', 'cpu']) {
+      const c = document.createElement('canvas');
+      c.style.width = '200px';
+      c.style.height = '200px';
+      document.body.append(c);
+      const sp = await createSmartParticles(c, {
+        model: doc, backend, width: vec.size, height: vec.size, seed: vec.seed, autoplay: false, interactive: false,
+      });
+      sp.setState(f32(vec.input), vec.startStep);
+      sp.advance(vec.steps);
+      const got = await sp.readState();
+      const want = f32(vec.output);
+      let err = 0;
+      for (let i = 0; i < want.length; i++) err = Math.max(err, Math.abs(got[i] - want[i]));
+      out[backend] = { kind: sp.backend, err, step: sp.getStep() };
+      sp.stop();
+    }
+    return out;
+  });
+  assert.equal(r.webgl2.kind, 'webgl2');
+  assert.equal(r.cpu.kind, 'cpu');
+  assert.ok(r.webgl2.err < 1e-4, `webgl2 max abs error ${r.webgl2.err}`);
+  assert.ok(r.cpu.err < 1e-4, `cpu max abs error ${r.cpu.err}`);
+  assert.equal(r.webgl2.step, 48);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('Smart Particles demo page grows the model and reacts to damage', async () => {
+  const page = await browser.newPage({ viewport: { width: 1100, height: 700 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`${base}/playground/smart.html?backend=webgl2`);
+  await page.waitForFunction(() => window.smart && window.smart.getStep() > 120, null, { timeout: 60000 });
+  await page.click('#play'); // pause so the counts below are stable
+  const grown = (await page.evaluate(() => window.smart.snapshot())).alive;
+  assert.ok(grown > 300, `expected a grown pattern, got ${grown} live cells`);
+
+  await page.click('#punch');
+  const damaged = (await page.evaluate(() => window.smart.snapshot())).alive;
+  assert.ok(damaged < grown, 'punching a hole should remove cells');
+
+  // Mouse damage goes through the same path
+  const box = await page.locator('#nca').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  assert.ok((await page.evaluate(() => window.smart.snapshot())).alive <= damaged);
+
+  await page.click('#reset');
+  assert.equal(await page.evaluate(() => window.smart.getStep()), 0);
+  assert.equal((await page.evaluate(() => window.smart.snapshot())).alive, 1, 'only the seed cell is visible after a reset');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
