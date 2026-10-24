@@ -29,11 +29,25 @@ function perceptionKernel(tf) {
   return tf.tensor4d(k, [3, 3, CHANNELS, 3]);
 }
 
+/** Small seeded PRNG (mulberry32), so a seeded training run is reproducible. */
+export function makeRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 /**
  * Build a trainable NCA. `weights` (optional) are superparticles-nca arrays
  * { w1: (H, 3C), b1: (H), w2: (C, H) } to start from, e.g. for parity tests.
  */
-export function createNCA(tf, weights) {
+export function createNCA(tf, weights, rng = Math.random) {
+  // tf.random* takes an integer seed per call; draw them from rng so seeded runs repeat
+  const nextSeed = () => Math.floor(rng() * 2 ** 31);
   const kernel = perceptionKernel(tf);
   let w1, b1, w2;
   if (weights) {
@@ -44,8 +58,8 @@ export function createNCA(tf, weights) {
   } else {
     // PyTorch's default conv init: U(-1/sqrt(fan_in), 1/sqrt(fan_in))
     const bound = 1 / Math.sqrt(3 * CHANNELS);
-    w1 = tf.variable(tf.randomUniform([1, 1, 3 * CHANNELS, HIDDEN], -bound, bound));
-    b1 = tf.variable(tf.randomUniform([HIDDEN], -bound, bound));
+    w1 = tf.variable(tf.randomUniform([1, 1, 3 * CHANNELS, HIDDEN], -bound, bound, 'float32', nextSeed()));
+    b1 = tf.variable(tf.randomUniform([HIDDEN], -bound, bound, 'float32', nextSeed()));
     w2 = tf.variable(tf.zeros([1, 1, HIDDEN, CHANNELS]));
   }
 
@@ -60,7 +74,7 @@ export function createNCA(tf, weights) {
       const p = tf.depthwiseConv2d(x, kernel, 1, 'same');
       const h = tf.relu(tf.add(tf.conv2d(p, w1, 1, 'valid'), b1));
       const dx = tf.conv2d(h, w2, 1, 'valid');
-      const mask = fire ?? tf.cast(tf.lessEqual(tf.randomUniform([x.shape[0], x.shape[1], x.shape[2], 1]), FIRE_RATE), 'float32');
+      const mask = fire ?? tf.cast(tf.lessEqual(tf.randomUniform([x.shape[0], x.shape[1], x.shape[2], 1], 0, 1, 'float32', nextSeed()), FIRE_RATE), 'float32');
       const y = tf.add(x, tf.mul(dx, mask));
       const keep = tf.mul(pre, alive(y));
       return tf.mul(y, keep);
@@ -131,9 +145,11 @@ export function imageToTarget(image, size, pad, { removeBackground = false, tole
 
 /**
  * Pool-based training with damage (as in train.py). Call `trainStep()` in a loop.
- * Options: size, batch, pool, rollout [min, max], damage, lr, steps (for the LR schedule).
+ * Options: size, batch, pool, rollout [min, max], damage, lr, steps (for the LR schedule),
+ * seed (optional: makes the run reproducible on a given backend).
  */
 export function createTrainer(tf, target, opts = {}) {
+  const rng = opts.seed === undefined ? Math.random : makeRng(opts.seed);
   const size = opts.size ?? 48;
   const batch = opts.batch ?? 4;
   const poolSize = opts.pool ?? 256;
@@ -142,7 +158,7 @@ export function createTrainer(tf, target, opts = {}) {
   const baseLr = opts.lr ?? 2e-3;
   const total = opts.steps ?? 2000;
 
-  const nca = createNCA(tf);
+  const nca = createNCA(tf, undefined, rng);
   const optimizer = tf.train.adam(baseLr);
   const tgt = tf.tensor4d(target, [1, size, size, 4]);
   let pool = seedBatch(tf, poolSize, size);
@@ -158,8 +174,8 @@ export function createTrainer(tf, target, opts = {}) {
     // zero a random disc in each sample
     const m = new Float32Array(n * size * size);
     for (let b = 0; b < n; b++) {
-      const cx = (Math.random() - 0.5), cy = (Math.random() - 0.5);
-      const r = 0.1 + Math.random() * 0.3;
+      const cx = (rng() - 0.5), cy = (rng() - 0.5);
+      const r = 0.1 + rng() * 0.3;
       for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
         const u = (x / (size - 1)) * 2 - 1, v = (y / (size - 1)) * 2 - 1;
         m[(b * size + y) * size + x] = (u - cx) ** 2 + (v - cy) ** 2 < (2 * r) ** 2 ? 0 : 1;
@@ -171,7 +187,7 @@ export function createTrainer(tf, target, opts = {}) {
   async function trainStep() {
     optimizer.learningRate = lr(stepNo);
     // sample a batch from the pool, worst first
-    const idx = Array.from({ length: batch }, () => Math.floor(Math.random() * poolSize));
+    const idx = Array.from({ length: batch }, () => Math.floor(rng() * poolSize));
     const idxT = tf.tensor1d(idx, 'int32');
     let x = tf.tidy(() => tf.gather(pool, idxT));
     const per = await tf.tidy(() => tf.mean(tf.square(tf.sub(tf.slice(x, [0, 0, 0, 0], [-1, -1, -1, 4]), tgt)), [1, 2, 3])).data();
@@ -192,7 +208,7 @@ export function createTrainer(tf, target, opts = {}) {
     x.dispose();
     idxT.dispose();
 
-    const n = rollout[0] + Math.floor(Math.random() * (rollout[1] - rollout[0] + 1));
+    const n = rollout[0] + Math.floor(rng() * (rollout[1] - rollout[0] + 1));
     let final = null;
     const { value, grads } = tf.variableGrads(() => {
       let s = ordered;

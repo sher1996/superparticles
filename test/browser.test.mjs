@@ -343,7 +343,7 @@ test('in-browser training: TF.js model matches PyTorch, learns, and exports a wo
     for (let y = 0; y < size; y++) for (let xx = 0; xx < size; xx++) {
       if ((xx - 12) ** 2 + (y - 12) ** 2 < 36) { const i = (y * size + xx) * 4; target[i] = 0.9; target[i + 1] = 0.2; target[i + 2] = 0.3; target[i + 3] = 1; }
     }
-    const trainer = createTrainer(tf, target, { size, batch: 2, pool: 16, rollout: [10, 14], damage: 0, steps: 60 });
+    const trainer = createTrainer(tf, target, { size, batch: 2, pool: 16, rollout: [10, 14], damage: 0, steps: 60, seed: 1 });
     const losses = [];
     for (let i = 0; i < 60; i++) { const s = await trainer.trainStep(); losses.push(s.loss); s.preview.dispose(); }
 
