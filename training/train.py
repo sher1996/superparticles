@@ -38,6 +38,7 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--out", default="training/runs/heart")
+    ap.add_argument("--resume", action="store_true", help="continue from <out>/checkpoint.pt")
     args = ap.parse_args()
 
     if args.threads:
@@ -60,8 +61,19 @@ def main() -> None:
     (out / "config.json").write_text(json.dumps(config, indent=2))
     print(json.dumps(config))
 
+    start = 0
+    ckpt_path = out / "checkpoint.pt"
+    if args.resume and ckpt_path.exists():
+        ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)  # our own checkpoint
+        model.load_state_dict(ckpt["model"])
+        if "opt" in ckpt:
+            opt.load_state_dict(ckpt["opt"])
+        start = ckpt["step"] + 1
+        gen.manual_seed(args.seed + 1 + start)
+        print(f"resumed from step {ckpt['step']}", flush=True)
+
     t0 = time.time()
-    for step in range(args.steps):
+    for step in range(start, args.steps):
         for g in opt.param_groups:
             g["lr"] = lr_schedule(step, args.steps, args.lr)
 
@@ -99,7 +111,9 @@ def main() -> None:
             log.flush()
             print(json.dumps(rec), flush=True)
         if step % 250 == 0 or step == args.steps - 1:
-            torch.save({"model": model.state_dict(), "step": step, "config": config}, out / "checkpoint.pt")
+            tmp = out / "checkpoint.tmp"
+            torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "step": step, "config": config}, tmp)
+            tmp.replace(ckpt_path)  # atomic: a crash mid-save never corrupts the checkpoint
 
     print(f"done in {time.time() - t0:.0f}s")
 

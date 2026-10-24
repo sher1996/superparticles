@@ -38,6 +38,10 @@ jobs:
     - name: Browser tests
       run: npm run test:browser
 
+    # Real WebGPU compute shaders via Dawn + Chromium's SwiftShader Vulkan driver
+    - name: WebGPU compute tests
+      run: npm run test:webgpu
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
