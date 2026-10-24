@@ -13,7 +13,7 @@ import numpy as np
 import torch
 
 from nca import lr_schedule
-from swarm import Swarm, blob, loss_fn, scatter, target_points
+from swarm import SPEED, Swarm, blob, coverage, hash_fire, loss_fn, scatter, target_points
 
 
 def main():
@@ -28,7 +28,9 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="training/runs/swarm-heart")
     ap.add_argument("--resume", action="store_true")
-    ap.add_argument("--reseed", type=int, default=2, help="fresh blobs per batch (keeps the pool from filling with tangled states)")
+    ap.add_argument("--reseed", type=int, default=1, help="fresh blobs per batch")
+    ap.add_argument("--window", type=int, default=8, help="score the shape over the last N steps, so it must hold still")
+    ap.add_argument("--still", type=float, default=0.5, help="weight of the movement penalty over that window")
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -56,7 +58,7 @@ def main():
 
     log = open(out / "log.jsonl", "a")
     t0 = time.time()
-    recent, best = [], float("inf")  # keep the checkpoint with the best recent Chamfer, not just the last
+    best_cov = -1.0  # best.pt = highest coverage after 150 steps from a fixed blob
     for step in range(start, args.steps):
         for g in opt.param_groups:
             g["lr"] = lr_schedule(step, args.steps, args.lr)
@@ -71,10 +73,16 @@ def main():
             if step > 200:
                 pos[-1:] = scatter(pos[-1:], gen)        # best -> scattered (learn to reassemble)
         n = random.randint(*args.rollout)
-        for _ in range(n):
+        win_loss, win_ch, moved = 0.0, 0.0, 0.0
+        for i in range(n):
+            prev = pos
             pos, st = model(pos, st)
-        loss, ch = loss_fn(pos, st, tpts, tcol)
-        loss = loss.mean()
+            if i >= n - args.window:
+                l, c = loss_fn(pos, st, tpts, tcol)
+                win_loss, win_ch = win_loss + l.mean(), win_ch + c
+                moved = moved + ((pos - prev) ** 2).sum(-1).mean() / SPEED ** 2
+        ch = win_ch / args.window
+        loss = win_loss / args.window + args.still * 1e-3 * moved / args.window
         opt.zero_grad()
         loss.backward()
         with torch.no_grad():
@@ -84,10 +92,19 @@ def main():
         opt.step()
         with torch.no_grad():
             pos_pool[idx], st_pool[idx] = pos.detach(), st.detach()
-        recent = (recent + [ch.mean().item()])[-50:]
-        if step >= 300 and len(recent) == 50 and sum(recent) / 50 < best:
-            best = sum(recent) / 50
-            torch.save({"model": model.state_dict(), "step": step, "config": config, "recent_chamfer": best}, out / "best.pt")
+        # Pick the saved model by the real goal: grow a fixed blob for 150 steps with the
+        # runtime's hashed mask and measure coverage (the training loss is too noisy for this)
+        if step % 100 == 99:
+            with torch.no_grad():
+                ep, es = blob(1, args.particles, torch.Generator().manual_seed(123))
+                for s_ in range(150):
+                    ep, es = model(ep, es, hash_fire(args.particles, s_, 7))
+                score = coverage(ep, tpts).item()
+            print(json.dumps({"step": step, "eval_coverage_150": round(score, 4)}), flush=True)
+            log.write(json.dumps({"step": step, "eval_coverage_150": round(score, 4)}) + "\n")
+            if score > best_cov:
+                best_cov = score
+                torch.save({"model": model.state_dict(), "step": step, "config": config, "eval_coverage_150": score}, out / "best.pt")
         if step % 20 == 0 or step == args.steps - 1:
             rec = {"step": step, "loss": loss.item(), "chamfer": ch.mean().item(), "iters": n, "elapsed": round(time.time() - t0, 1)}
             log.write(json.dumps(rec) + "\n")
