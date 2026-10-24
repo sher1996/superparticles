@@ -43,9 +43,53 @@ h3 { margin: 0 0 0.4rem; font-size: 0.9rem; }
 .slider-label span + span { font-weight: 400; color: #4b5563; font-variant-numeric: tabular-nums; }
 input[type="range"] { width: 100%; }
 
-.check { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+.check { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; cursor: pointer; }
 #plugin-list .check { font-weight: 400; }
 #plugin-list .check + .check { margin-top: 0.25rem; }
+
+kbd.key-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.25rem;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #374151;
+  background: #f3f4f6;
+  border: 1px solid #9ca3af;
+  border-bottom: 2px solid #6b7280;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: all 0.1s ease;
+  user-select: none;
+}
+
+kbd.key-hint.pressed {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #1d4ed8;
+  border-bottom-width: 1px;
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.keyboard-note {
+  margin-top: 0.6rem;
+  font-size: 0.72rem;
+  color: #4b5563;
+  line-height: 1.6;
+}
+
+.keyboard-note kbd.key-hint {
+  min-width: 1.1rem;
+  height: 1.1rem;
+  font-size: 0.65rem;
+  vertical-align: middle;
+}
 
 input[type="color"] { width: 2rem; height: 2rem; padding: 0; border: 1px solid #9ca3af; border-radius: 4px; }
 

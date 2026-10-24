@@ -2,9 +2,9 @@ import { init, setOptions, exportState, importState, setPluginEnabled } from "..
 
 // Known plugins and their types (match keys in plugins/manifest.json)
 const plugins = [
-  { id: "fireworks-force", name: "Fireworks Force", type: "force" },
-  { id: "gravity-well-force", name: "Gravity Well Force", type: "force" },
-  { id: "gravity-well-shader", name: "Gravity Well Shader (WebGL2/WebGPU)", type: "shader" },
+  { id: "fireworks-force", name: "Fireworks Force", type: "force", key: "F" },
+  { id: "gravity-well-force", name: "Gravity Well Force", type: "force", key: "V" },
+  { id: "gravity-well-shader", name: "Gravity Well Shader (WebGL2/WebGPU)", type: "shader", key: "S" },
 ];
 
 const defaultState = {
@@ -148,6 +148,20 @@ function initControls() {
   };
 }
 
+function flashKeyBadge(element) {
+  if (!element) return;
+  element.classList.add("pressed");
+  setTimeout(() => element.classList.remove("pressed"), 150);
+}
+
+function toggleCheckbox(input) {
+  if (!input) return;
+  input.checked = !input.checked;
+  input.dispatchEvent(new Event("change"));
+  const kbd = input.parentElement?.querySelector("kbd");
+  flashKeyBadge(kbd);
+}
+
 function initPlugins() {
   const list = $("plugin-list");
   for (const plugin of plugins) {
@@ -156,7 +170,13 @@ function initPlugins() {
     const box = document.createElement("input");
     box.type = "checkbox";
     box.dataset.id = plugin.id;
-    row.append(box, document.createTextNode(plugin.name));
+    const kbd = document.createElement("kbd");
+    kbd.className = "key-hint";
+    kbd.textContent = plugin.key;
+    kbd.title = `Press ${plugin.key} to toggle`;
+    const labelSpan = document.createElement("span");
+    labelSpan.textContent = plugin.name;
+    row.append(box, kbd, labelSpan);
     list.append(row);
 
     box.onchange = () => {
@@ -197,6 +217,74 @@ function initPresets() {
   });
 }
 
+function initKeyboardControls() {
+  const colorPalette = ["#70c1ff", "#ff7070", "#70ff8b", "#ffdc70", "#d170ff", "#ffffff"];
+  let colorIdx = 0;
+
+  window.addEventListener("keydown", (e) => {
+    if (e.repeat) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+    // Do not interfere if user is typing in a text field or color input
+    const tag = e.target.tagName;
+    if (tag === "INPUT" && (e.target.type === "text" || e.target.type === "color")) return;
+    if (tag === "TEXTAREA" || tag === "SELECT") return;
+
+    const key = e.key.toLowerCase();
+
+    // Deterministic: D (primary), A (alias)
+    if (key === "d" || key === "a") {
+      e.preventDefault();
+      toggleCheckbox($("deterministic-toggle"));
+      return;
+    }
+
+    // Fireworks Force: F (primary), Q (alias)
+    if (key === "f" || key === "q") {
+      e.preventDefault();
+      toggleCheckbox(document.querySelector('#plugin-list input[data-id="fireworks-force"]'));
+      return;
+    }
+
+    // Gravity Well Force: V (primary), G / W (alias)
+    if (key === "v" || key === "g" || key === "w") {
+      e.preventDefault();
+      toggleCheckbox(document.querySelector('#plugin-list input[data-id="gravity-well-force"]'));
+      return;
+    }
+
+    // Gravity Well Shader: S (primary), E (alias)
+    if (key === "s" || key === "e") {
+      e.preventDefault();
+      toggleCheckbox(document.querySelector('#plugin-list input[data-id="gravity-well-shader"]'));
+      return;
+    }
+
+    // Reset presets: R
+    if (key === "r") {
+      e.preventDefault();
+      const resetBtn = $("reset-preset");
+      if (resetBtn) resetBtn.click();
+      return;
+    }
+
+    // Cycle color: C
+    if (key === "c") {
+      e.preventDefault();
+      colorIdx = (colorIdx + 1) % colorPalette.length;
+      const nextColor = colorPalette[colorIdx];
+      const picker = $("color-picker");
+      if (picker) {
+        picker.value = nextColor;
+        setOptions({ color: nextColor });
+        saveState();
+        flashKeyBadge(picker.parentElement?.querySelector("kbd"));
+      }
+      return;
+    }
+  });
+}
+
 function initFPS() {
   const fps = $("fps-display");
   let last = performance.now();
@@ -219,6 +307,7 @@ loadPresetFromHash();
 initControls();
 initPlugins();
 initPresets();
+initKeyboardControls();
 syncUI();
 initFPS();
 

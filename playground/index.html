@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SuperParticles Playground</title>
+  <link rel="icon" href="data:," />
   <link rel="stylesheet" href="ui.css" />
 </head>
 <body>
@@ -44,6 +45,7 @@
     <section>
       <label class="check">
         <input id="deterministic-toggle" type="checkbox" />
+        <kbd class="key-hint" title="Press D to toggle">D</kbd>
         <span>Deterministic</span>
       </label>
     </section>
@@ -51,6 +53,7 @@
     <section>
       <label class="check">
         <span>Color</span>
+        <kbd class="key-hint" title="Press C to cycle">C</kbd>
         <input id="color-picker" type="color" value="#70c1ff" />
       </label>
     </section>
@@ -58,6 +61,9 @@
     <section>
       <h3>Plugins</h3>
       <div id="plugin-list"></div>
+      <p class="note keyboard-note">
+        Shortcuts: <kbd class="key-hint">F</kbd> Fireworks &bull; <kbd class="key-hint">V</kbd> Gravity &bull; <kbd class="key-hint">S</kbd> Shader &bull; <kbd class="key-hint">D</kbd> Deterministic
+      </p>
     </section>
 
     <section class="divider">

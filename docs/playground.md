@@ -40,6 +40,19 @@ Turning both on makes them roughly cancel out.
 ### Shader plugins
 - **Gravity Well Shader**: makes particles dimmer the closer they are to the center. Works in WebGL2 and WebGPU only, since Canvas2D has no shaders.
 
+## Keyboard Shortcuts
+
+All effect and checkbox settings in the control panel can be toggled via keyboard keys positioned conveniently on the left-hand side (`cvfdrsreaq` area):
+
+| Key | Effect / Setting | Description |
+| --- | --- | --- |
+| <kbd>F</kbd> (or <kbd>Q</kbd>) | **Fireworks Force** | Toggles pushing particles outward |
+| <kbd>V</kbd> (or <kbd>W</kbd> / <kbd>G</kbd>) | **Gravity Well Force** | Toggles pulling particles toward the center |
+| <kbd>S</kbd> (or <kbd>E</kbd>) | **Gravity Well Shader** | Toggles center dimming shader (WebGL2/WebGPU) |
+| <kbd>D</kbd> (or <kbd>A</kbd>) | **Deterministic** | Toggles fixed seed random layout |
+| <kbd>C</kbd> | **Color** | Cycles through color presets |
+| <kbd>R</kbd> | **Reset** | Restores default settings |
+
 ## Presets
 
 - **Copy URL**: encodes the current settings and active plugins into the URL hash, so you can share them.

@@ -133,3 +133,78 @@ test('switching renderers repeatedly does not duplicate plugin forces', async ()
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+test('keyboard keys toggle checkboxes and effects', async () => {
+  const { page, errors } = await openPlayground();
+
+  const isChecked = id => page.$eval(`#plugin-list input[data-id="${id}"]`, el => el.checked);
+  const isDeterministicChecked = () => page.$eval('#deterministic-toggle', el => el.checked);
+
+  // Initial state: all false
+  assert.equal(await isChecked('fireworks-force'), false);
+  assert.equal(await isChecked('gravity-well-force'), false);
+  assert.equal(await isChecked('gravity-well-shader'), false);
+  assert.equal(await isDeterministicChecked(), false);
+
+  // Press 'f' -> toggles Fireworks Force
+  await page.keyboard.press('f');
+  await page.waitForTimeout(100);
+  assert.equal(await isChecked('fireworks-force'), true);
+
+  // Press 'v' -> toggles Gravity Well Force
+  await page.keyboard.press('v');
+  await page.waitForTimeout(100);
+  assert.equal(await isChecked('gravity-well-force'), true);
+
+  // Press 's' -> toggles Gravity Well Shader
+  await page.keyboard.press('s');
+  await page.waitForTimeout(100);
+  assert.equal(await isChecked('gravity-well-shader'), true);
+
+  // Press 'd' -> toggles Deterministic
+  await page.keyboard.press('d');
+  await page.waitForTimeout(100);
+  assert.equal(await isDeterministicChecked(), true);
+
+  // Verify internal engine plugin state
+  let pluginState = await page.evaluate(async () => (await import('/dist/index.js')).getPluginState());
+  assert.deepEqual(pluginState.forces.sort(), ['fireworks-force', 'gravity-well-force'].sort());
+  assert.deepEqual(pluginState.shaders, ['gravity-well-shader']);
+
+  // Press again to toggle off
+  await page.keyboard.press('f');
+  await page.keyboard.press('v');
+  await page.keyboard.press('s');
+  await page.keyboard.press('d');
+  await page.waitForTimeout(100);
+
+  assert.equal(await isChecked('fireworks-force'), false);
+  assert.equal(await isChecked('gravity-well-force'), false);
+  assert.equal(await isChecked('gravity-well-shader'), false);
+  assert.equal(await isDeterministicChecked(), false);
+
+  // Test aliases: 'q' for fireworks, 'w' for gravity well, 'e' for shader, 'a' for deterministic
+  await page.keyboard.press('q');
+  await page.keyboard.press('w');
+  await page.keyboard.press('e');
+  await page.keyboard.press('a');
+  await page.waitForTimeout(100);
+
+  assert.equal(await isChecked('fireworks-force'), true);
+  assert.equal(await isChecked('gravity-well-force'), true);
+  assert.equal(await isChecked('gravity-well-shader'), true);
+  assert.equal(await isDeterministicChecked(), true);
+
+  // Test reset with 'r'
+  await page.keyboard.press('r');
+  await page.waitForTimeout(200);
+
+  assert.equal(await isChecked('fireworks-force'), false);
+  assert.equal(await isChecked('gravity-well-force'), false);
+  assert.equal(await isChecked('gravity-well-shader'), false);
+  assert.equal(await isDeterministicChecked(), false);
+
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
