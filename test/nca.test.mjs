@@ -111,7 +111,7 @@ test('learned swarm: JS runtime reproduces the PyTorch rollout', async () => {
   const doc = JSON.parse(readFileSync('test/fixtures/random.swarm.json', 'utf8'));
   const v = JSON.parse(readFileSync('test/fixtures/random.swarm-vectors.json', 'utf8'));
   const m = sw.parseSwarm(doc);
-  assert.equal(m.w1.length, m.hidden * (4 * m.channels + 1));
+  assert.equal(m.w1.length, m.hidden * (4 * m.channels + 3));
   const sim = new sw.SwarmCPU(m, { particles: v.particles, seed: v.seed });
   sim.pos.set(f32(v.pos));
   sim.state.set(f32(v.state));

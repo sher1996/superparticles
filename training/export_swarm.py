@@ -2,7 +2,7 @@
 
     python training/export_swarm.py training/runs/swarm-heart/checkpoint.pt models/swarm-heart.swarm.json
 
-Weights: w1 (HIDDEN, 4C+1) over perception [state | mean | gx | gy | log1p(density)],
+Weights: w1 (HIDDEN, 4C+3) over perception [state | mean | gx | gy | log1p(density) | x, y],
 b1 (HIDDEN), w2 (C+2, HIDDEN) -> [delta state (C), velocity (2)]. No bias on w2.
 """
 

@@ -41,7 +41,7 @@ export interface SwarmModel {
   tether: number;
   bound: number;
   fireRate: number;
-  w1: Float32Array; // (hidden, 4C + 1)
+  w1: Float32Array; // (hidden, 4C + 3): [state | mean | gx | gy | log1p(density) | x, y]
   b1: Float32Array; // (hidden)
   w2: Float32Array; // (C + 2, hidden)
   metrics?: Record<string, unknown> | null;
@@ -64,7 +64,7 @@ export function parseSwarm(doc: SwarmModelFile): SwarmModel {
   return {
     name: doc.name, particles: doc.particles, channels: C, hidden: H,
     radius: doc.radius, speed: doc.speed, stateLimit: doc.stateLimit ?? 3, tether: doc.tether ?? 0, bound: doc.bound ?? 1, fireRate: doc.fireRate,
-    w1: read('w1', [H, 4 * C + 1]), b1: read('b1', [H]), w2: read('w2', [C + 2, H]),
+    w1: read('w1', [H, 4 * C + 3]), b1: read('b1', [H]), w2: read('w2', [C + 2, H]),
     metrics: doc.metrics,
   };
 }
@@ -97,7 +97,7 @@ export class SwarmCPU {
     this.state = new Float32Array(this.n * this.C);
     this.nextPos = new Float32Array(this.n * 2);
     this.nextState = new Float32Array(this.n * this.C);
-    this.inp = new Float64Array(4 * this.C + 1);
+    this.inp = new Float64Array(4 * this.C + 3);
     this.hid = new Float64Array(model.hidden);
     this.reset();
   }
@@ -136,7 +136,7 @@ export class SwarmCPU {
 
   private stepOnce() {
     const { n, C, model, pos, state, nextPos, nextState, inp, hid } = this;
-    const R = model.radius, H = model.hidden, P = 4 * C + 1;
+    const R = model.radius, H = model.hidden, P = 4 * C + 3;
     const { w1, b1, w2 } = model;
     nextPos.set(pos);
     nextState.set(state);
@@ -169,6 +169,8 @@ export class SwarmCPU {
         inp[3 * C + c] /= norm;
       }
       inp[4 * C] = Math.log1p(wsum);
+      inp[4 * C + 1] = xi; // own position: lets the swarm anchor the shape in place
+      inp[4 * C + 2] = yi;
       for (let h = 0; h < H; h++) {
         let s = b1[h];
         const row = h * P;

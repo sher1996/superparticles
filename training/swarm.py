@@ -6,13 +6,17 @@ and one shared network outputs both a state change and a velocity. The swarm
 is trained to assemble a target shape from a random blob and to reassemble
 after part of it is scattered.
 
+Without the position input the rule is translation invariant: the swarm builds the shape
+but cannot tell *where*, and the whole shape slowly slides away (seen in training).
+
 Perception for particle i, with weights w_ij = max(0, 1 - d_ij / R)^2 over j != i:
   own state s_i                                   (C)
   weighted mean of neighbour states               (C)
   weighted mean of (offset_x / R) * s_j            (C)   "where is which state", like Sobel x
   weighted mean of (offset_y / R) * s_j            (C)   like Sobel y
   log(1 + sum of weights)                         (1)   local density
--> MLP (4C+1 -> HIDDEN -> C+2) -> [delta state, velocity]; states are clamped to [-3, 3]
+  own position (x, y)                             (2)   where am I (like a chemical gradient)
+-> MLP (4C+3 -> HIDDEN -> C+2) -> [delta state, velocity]; states are clamped to [-3, 3]
 The target lives in [-1, 1]^2; a weak tether pulls every moving particle toward the
 centre so none can strand itself out of sensing range. Updates are stochastic (hash mask at runtime).
 """
@@ -37,7 +41,7 @@ FIRE_RATE = 0.5
 class Swarm(nn.Module):
     def __init__(self):
         super().__init__()
-        self.fc1 = nn.Linear(4 * C + 1, HIDDEN)
+        self.fc1 = nn.Linear(4 * C + 3, HIDDEN)
         self.fc2 = nn.Linear(HIDDEN, C + 2, bias=False)
         nn.init.zeros_(self.fc2.weight)
 
@@ -53,7 +57,7 @@ class Swarm(nn.Module):
         mean = (w @ state) / norm
         gx = ((w * off[..., 0] / RADIUS) @ state) / norm
         gy = ((w * off[..., 1] / RADIUS) @ state) / norm
-        return torch.cat([state, mean, gx, gy, torch.log1p(wsum)], -1)
+        return torch.cat([state, mean, gx, gy, torch.log1p(wsum), pos], -1)
 
     def forward(self, pos, state, fire=None):
         out = self.fc2(F.relu(self.fc1(self.perceive(pos, state))))
