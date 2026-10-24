@@ -19,6 +19,10 @@ export interface SwarmModelFile {
   speed: number;
   /** States are clamped to ±stateLimit after each update (default 3). */
   stateLimit?: number;
+  /** Pull toward the centre per step, as a fraction of position (default 0). */
+  tether?: number;
+  /** Positions are clamped to ±bound (default 1). */
+  bound?: number;
   fireRate: number;
   dtype: 'float16' | 'float32';
   weights: Record<'w1' | 'b1' | 'w2', { shape: number[]; data: string }>;
@@ -34,6 +38,8 @@ export interface SwarmModel {
   radius: number;
   speed: number;
   stateLimit: number;
+  tether: number;
+  bound: number;
   fireRate: number;
   w1: Float32Array; // (hidden, 4C + 1)
   b1: Float32Array; // (hidden)
@@ -57,7 +63,7 @@ export function parseSwarm(doc: SwarmModelFile): SwarmModel {
   };
   return {
     name: doc.name, particles: doc.particles, channels: C, hidden: H,
-    radius: doc.radius, speed: doc.speed, stateLimit: doc.stateLimit ?? 3, fireRate: doc.fireRate,
+    radius: doc.radius, speed: doc.speed, stateLimit: doc.stateLimit ?? 3, tether: doc.tether ?? 0, bound: doc.bound ?? 1, fireRate: doc.fireRate,
     w1: read('w1', [H, 4 * C + 1]), b1: read('b1', [H]), w2: read('w2', [C + 2, H]),
     metrics: doc.metrics,
   };
@@ -176,7 +182,8 @@ export class SwarmCPU {
         if (o < C) nextState[i * C + o] = Math.min(model.stateLimit, Math.max(-model.stateLimit, state[i * C + o] + s));
         else {
           const k = 2 * i + (o - C);
-          nextPos[k] = Math.min(1, Math.max(-1, pos[k] + model.speed * Math.tanh(s)));
+          const b = model.bound;
+          nextPos[k] = Math.min(b, Math.max(-b, pos[k] + model.speed * Math.tanh(s) - model.tether * pos[k]));
         }
       }
     }

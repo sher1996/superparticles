@@ -13,7 +13,8 @@ Perception for particle i, with weights w_ij = max(0, 1 - d_ij / R)^2 over j != 
   weighted mean of (offset_y / R) * s_j            (C)   like Sobel y
   log(1 + sum of weights)                         (1)   local density
 -> MLP (4C+1 -> HIDDEN -> C+2) -> [delta state, velocity]; states are clamped to [-3, 3]
-Positions live in [-1, 1]^2. Particles update stochastically (hash mask at runtime).
+The target lives in [-1, 1]^2; a weak tether pulls every moving particle toward the
+centre so none can strand itself out of sensing range. Updates are stochastic (hash mask at runtime).
 """
 
 import math
@@ -28,6 +29,8 @@ HIDDEN = 96
 RADIUS = 0.22
 SPEED = 0.03    # max distance per step
 STATE_LIMIT = 3.0  # states are clamped to [-3, 3]; unbounded states blew up training
+TETHER = 0.01      # weak pull toward the centre: stranded particles drift back into sensing range
+BOUND = 1.5        # safety limit only (a hard clamp at the shape's edge trapped particles: no gradient)
 FIRE_RATE = 0.5
 
 
@@ -58,7 +61,7 @@ class Swarm(nn.Module):
         if fire is None:
             fire = (torch.rand(pos.shape[:2], device=pos.device) <= FIRE_RATE).float()[..., None]
         # bounded step: tanh keeps the swarm stable during long rollouts
-        pos = (pos + SPEED * torch.tanh(v) * fire).clamp(-1, 1)
+        pos = (pos + (SPEED * torch.tanh(v) - TETHER * pos) * fire).clamp(-BOUND, BOUND)
         state = (state + ds * fire).clamp(-STATE_LIMIT, STATE_LIMIT)
         return pos, state
 
