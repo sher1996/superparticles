@@ -1,128 +1,76 @@
 /* SuperParticles – Public Façade */
 
-import { loadPlugins, setPluginEnabled, getPluginState, disablePlugin, registerPlugin } from './plugin.js';
-import { resizeParticleBuffers, resetParticles, setSpeed, style } from './core.js';
+import { Engine, defaults, type Options, type EngineState } from './engine.js';
+import { registerPlugin } from './plugin.js';
+import type { RendererKind } from './render.js';
 
 // Re-export types for third-party plugin authors
 export type { Vec2, Bounds, ForceFn, ShaderSource, ParticlePlugin, PluginOptions, ShaderPlugin } from './types/plugin.js';
+export type { Options, EngineState, RendererKind };
+export { Engine, registerPlugin };
 
-// Re-export plugin management functions
-export { setPluginEnabled, getPluginState, registerPlugin };
+/**
+ * Create an independent engine. Prefer this for new code: each engine has its
+ * own particles, plugins and options, so several can run on one page.
+ */
+export function createEngine(canvas: HTMLCanvasElement, options: Options = {}): Promise<Engine> {
+  return Engine.create(canvas, options);
+}
 
-export type RendererKind = 'canvas2d' | 'webgl2' | 'webgpu';
+// ---------------------------------------------------------------------------
+// Single-engine convenience API (kept for existing pages and the playground).
+// These functions act on the engine most recently started with init().
 
 export type EngineHandle = {
   /** The renderer actually in use (may differ from the one requested if it was unavailable). */
   renderer: RendererKind;
+  engine: Engine;
   stop: () => void;
   disablePlugin: (id: string) => void;
 };
 
-export interface Options {
-  color?: string;
-  speed?: number;
-  useWebGL?: boolean;
-  useWebGPU?: boolean;
-  particleCount?: number;
-  /** Particle size in CSS pixels. */
-  particleSize?: number;
-  deterministic?: boolean;
+let current: Engine | null = null;
+let pending: EngineState = { ...defaults };
+
+/**
+ * Start rendering into `canvas`. A canvas keeps the first context type it is
+ * given, so to switch renderers pass a fresh canvas element.
+ */
+export async function init(canvas: HTMLCanvasElement, options: Options = {}): Promise<EngineHandle> {
+  const engine = await Engine.create(canvas, options);
+  current = engine;
+  pending = engine.exportState();
+  return {
+    renderer: engine.renderer,
+    engine,
+    stop: () => {
+      engine.stop();
+      if (current === engine) current = null;
+    },
+    disablePlugin: id => engine.disablePlugin(id),
+  };
 }
-
-const defaults: Required<Options> = {
-  color: '#70c1ff',
-  speed: 40,
-  useWebGL: false,
-  useWebGPU: false,
-  particleCount: 1000,
-  particleSize: 2,
-  deterministic: false,
-};
-
-let opts: Required<Options> = { ...defaults };
-let running = false;
-let generation = 0;
 
 /** Update options. Color, size, speed, count and deterministic apply live. */
 export function setOptions(next: Options) {
-  if (next.speed !== undefined) {
-    opts.speed = next.speed;
-    if (running) setSpeed(next.speed);
+  if (current) current.setOptions(next);
+  for (const k of Object.keys(defaults) as Array<keyof EngineState>) {
+    if (next[k] !== undefined) (pending as Record<string, unknown>)[k] = next[k];
   }
-  if (next.particleCount !== undefined && next.particleCount !== opts.particleCount) {
-    opts.particleCount = next.particleCount;
-    if (running) resizeParticleBuffers(next.particleCount);
-  }
-  if (next.deterministic !== undefined && next.deterministic !== opts.deterministic) {
-    opts.deterministic = next.deterministic;
-    if (running) resetParticles(next.deterministic);
-  }
-  if (next.color !== undefined) opts.color = style.color = next.color;
-  if (next.particleSize !== undefined) opts.particleSize = style.size = next.particleSize;
-  if (next.useWebGL !== undefined) opts.useWebGL = next.useWebGL;
-  if (next.useWebGPU !== undefined) opts.useWebGPU = next.useWebGPU;
 }
 
-export function exportState(): Required<Options> {
-  return { ...opts };
+export function exportState(): EngineState {
+  return current ? current.exportState() : { ...pending };
 }
 
 export function importState(state: Options) {
   setOptions(state);
 }
 
-/**
- * Start rendering into `canvas`. Falls back WebGPU → WebGL2 → Canvas2D when a
- * renderer is unavailable; check `handle.renderer` for the one in use.
- *
- * A canvas keeps the first context type it is given, so to switch renderers
- * pass a fresh canvas element.
- */
-export async function init(canvas: HTMLCanvasElement, options: Options = {}): Promise<EngineHandle> {
-  opts = { ...defaults, ...options };
-  style.color = opts.color;
-  style.size = opts.particleSize;
+export function setPluginEnabled(type: 'force' | 'shader', id: string, enabled: boolean) {
+  current?.setPluginEnabled(type, id, enabled);
+}
 
-  const cfg = { speed: opts.speed, deterministic: opts.deterministic, particleCount: opts.particleCount };
-  let renderer: { stop: () => void } | null = null;
-  let kind: RendererKind = 'canvas2d';
-
-  if (opts.useWebGPU && typeof navigator !== 'undefined' && navigator.gpu) {
-    try {
-      const { drawGPU } = await import('./drawGPU.js');
-      renderer = await drawGPU(canvas, cfg);
-      kind = 'webgpu';
-    } catch (error) {
-      console.warn('SuperParticles: WebGPU unavailable, falling back', error);
-    }
-  }
-  if (!renderer && (opts.useWebGL || opts.useWebGPU)) {
-    try {
-      const { initWebGL2 } = await import('./drawGL.js');
-      renderer = initWebGL2(canvas, cfg);
-      kind = 'webgl2';
-    } catch (error) {
-      console.warn('SuperParticles: WebGL2 unavailable, falling back', error);
-    }
-  }
-  if (!renderer) {
-    const { initCanvas2D } = await import('./draw2d.js');
-    renderer = initCanvas2D(canvas, cfg);
-    kind = 'canvas2d';
-  }
-  running = true;
-  const myGeneration = ++generation;
-
-  // Load plugins after first paint
-  await loadPlugins({ deterministic: opts.deterministic });
-
-  const active = renderer;
-  return {
-    renderer: kind,
-    stop: () => {
-      active.stop();
-      if (myGeneration === generation) running = false;
-    },
-    disablePlugin,
-  };
+export function getPluginState() {
+  return current ? current.getPluginState() : { forces: [], shaders: [] };
 }

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Particles</title>
+  <link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+  <canvas id="nca" aria-label="Smart particles: click or drag to cut holes"></canvas>
+
+  <aside id="panel">
+    <section>
+      <h3>Smart Particles</h3>
+      <p class="note">Every dot is a cell running the same tiny neural network (8,320 weights). It only sees its neighbours, yet together they grow the shape from one seed and heal it after damage. <strong>Click or drag to cut holes.</strong></p>
+    </section>
+
+    <section>
+      <h3>Model</h3>
+      <select id="model-select" aria-label="Model"></select>
+      <p id="backend-note" class="note"></p>
+    </section>
+
+    <section>
+      <div class="row">
+        <button id="play" aria-pressed="true">Pause</button>
+        <button id="step">Step</button>
+        <button id="reset">Reset to seed</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="row">
+        <button id="punch" class="danger">Punch hole</button>
+        <button id="halve" class="danger">Cut in half</button>
+      </div>
+      <p id="recovery" class="note">Damage it to measure recovery.</p>
+    </section>
+
+    <section>
+      <label class="slider-label" for="speed">
+        <span>Steps per frame</span><span id="speed-value">1</span>
+      </label>
+      <input id="speed" type="range" min="1" max="8" value="1" />
+    </section>
+
+    <section>
+      <label class="slider-label" for="channel">
+        <span>View</span><span id="channel-value">colour</span>
+      </label>
+      <input id="channel" type="range" min="3" max="15" value="3" aria-label="Channel to show (3 = colour, 4-15 = hidden state)" />
+      <p class="note">Slide right to see the hidden channels the cells use to communicate.</p>
+    </section>
+
+    <section>
+      <h3>Share</h3>
+      <div class="row">
+        <button id="record">Record 8 s video</button>
+        <button id="embed">Copy embed code</button>
+      </div>
+      <p id="share-note" class="note"></p>
+    </section>
+
+    <section class="divider">
+      <div id="stats" class="note">step 0</div>
+      <p class="note"><a href="./train.html">Train your own shape →</a> · <a href="./swarm.html">Moving swarm →</a> · <a href="./smart3d.html">3D →</a> · <a href="./index.html">Playground</a></p>
+    </section>
+  </aside>
+
+  <script type="module" src="./smart.js"></script>
+</body>
+</html>

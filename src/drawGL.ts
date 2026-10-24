@@ -1,7 +1,6 @@
 /* SuperParticles – WebGL2 Renderer */
 
-import { initArrays, stepPhysics, pos, dt, style, setBounds, getParticleCount } from './core.js';
-import { currentGLSL, getShaderVersion } from './plugin.js';
+import type { RenderContext, Renderer } from './render.js';
 import { hexToRgba } from './color.js';
 
 const vertexShaderSource = `#version 300 es
@@ -24,24 +23,11 @@ void main() {
 }
 `;
 
-export function initWebGL2(
-  canvas: HTMLCanvasElement,
-  { speed = 40, deterministic = false, particleCount = 1000 } = {},
-) {
-  const gl = canvas.getContext('webgl2');
+export function createWebGL2(rc: RenderContext): Renderer {
+  const gl = rc.canvas.getContext('webgl2');
   if (!gl) {
     throw new Error('WebGL2 unavailable (unsupported, or the canvas already uses another context type)');
   }
-
-  const dpr = devicePixelRatio || 1;
-  const resize = () => {
-    canvas.width = innerWidth * dpr;
-    canvas.height = innerHeight * dpr;
-    gl.viewport(0, 0, canvas.width, canvas.height);
-    setBounds(canvas.width, canvas.height);
-  };
-  resize();
-  addEventListener('resize', resize);
 
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
 
@@ -55,10 +41,10 @@ export function initWebGL2(
   const vao = gl.createVertexArray();
 
   function buildProgram() {
-    builtVersion = getShaderVersion();
+    builtVersion = rc.plugins.shaderVersion;
     let next: WebGLProgram;
     try {
-      next = createProgram(gl!, vertexShader, createShader(gl!, gl!.FRAGMENT_SHADER, currentGLSL() ?? defaultFragmentSource));
+      next = createProgram(gl!, vertexShader, createShader(gl!, gl!.FRAGMENT_SHADER, rc.plugins.glsl() ?? defaultFragmentSource));
     } catch (error) {
       console.error('SuperParticles: shader plugin failed, using default shader', error);
       next = createProgram(gl!, vertexShader, createShader(gl!, gl!.FRAGMENT_SHADER, defaultFragmentSource));
@@ -77,57 +63,51 @@ export function initWebGL2(
   }
   buildProgram();
 
-  initArrays(canvas.width, canvas.height, speed, deterministic, particleCount);
-
-  let clip = new Float32Array(getParticleCount() * 2);
-  let acc = 0, prev = performance.now(), id = 0;
-
-  function frame(now: number) {
-    acc += Math.min(now - prev, 100);
-    prev = now;
-
-    while (acc >= dt * 1000) {
-      stepPhysics(canvas.width, canvas.height);
-      acc -= dt * 1000;
-    }
-
-    if (builtVersion !== getShaderVersion()) buildProgram();
-
-    const n = getParticleCount();
-    if (clip.length !== n * 2) clip = new Float32Array(n * 2);
-
-    // Pixel coords (y down) to clip space (y up)
-    const w = canvas.width, h = canvas.height;
-    for (let i = 0; i < n; i++) {
-      const ix = i << 1;
-      clip[ix]     = (pos[ix] / w) * 2 - 1;
-      clip[ix + 1] = 1 - (pos[ix + 1] / h) * 2;
-    }
-
-    gl!.clearColor(0, 0, 0, 1);
-    gl!.clear(gl!.COLOR_BUFFER_BIT);
-    gl!.enable(gl!.BLEND);
-    gl!.blendFunc(gl!.SRC_ALPHA, gl!.ONE_MINUS_SRC_ALPHA);
-
-    gl!.useProgram(program);
-    const c = hexToRgba(style.color);
-    gl!.uniform1f(sizeLoc, Math.max(1, style.size * dpr));
-    gl!.uniform4f(colorLoc, c.r, c.g, c.b, c.a);
-    if (resolutionLoc) gl!.uniform2f(resolutionLoc, w, h);
-
-    gl!.bindVertexArray(vao);
-    gl!.bindBuffer(gl!.ARRAY_BUFFER, positionBuffer);
-    gl!.bufferData(gl!.ARRAY_BUFFER, clip, gl!.DYNAMIC_DRAW);
-    gl!.drawArrays(gl!.POINTS, 0, n);
-
-    id = requestAnimationFrame(frame);
-  }
-  id = requestAnimationFrame(frame);
+  let clip = new Float32Array(0);
 
   return {
-    stop() {
-      cancelAnimationFrame(id);
-      removeEventListener('resize', resize);
+    resize() {
+      gl.viewport(0, 0, rc.canvas.width, rc.canvas.height);
+    },
+    draw() {
+      const { canvas, sim, style, view } = rc;
+      if (builtVersion !== rc.plugins.shaderVersion) buildProgram();
+
+      const n = sim.count;
+      if (clip.length !== n * 2) clip = new Float32Array(n * 2);
+
+      // World units → device pixels → clip space (y up)
+      const w = canvas.width, h = canvas.height;
+      const ax = (2 * view.sx) / w, bx = (2 * view.ox) / w - 1;
+      const ay = (-2 * view.sy) / h, by = 1 - (2 * view.oy) / h;
+      const pos = sim.pos;
+      for (let i = 0; i < n; i++) {
+        const ix = i << 1;
+        clip[ix]     = pos[ix] * ax + bx;
+        clip[ix + 1] = pos[ix + 1] * ay + by;
+      }
+
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+      gl.useProgram(program);
+      const c = hexToRgba(style.color);
+      gl.uniform1f(sizeLoc, Math.max(1, style.size * view.dpr));
+      gl.uniform4f(colorLoc, c.r, c.g, c.b, c.a);
+      if (resolutionLoc) gl.uniform2f(resolutionLoc, w, h);
+
+      gl.bindVertexArray(vao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, clip, gl.DYNAMIC_DRAW);
+      gl.drawArrays(gl.POINTS, 0, n);
+    },
+    destroy() {
+      gl.deleteProgram(program);
+      gl.deleteShader(vertexShader);
+      gl.deleteBuffer(positionBuffer);
+      gl.deleteVertexArray(vao);
     },
   };
 }

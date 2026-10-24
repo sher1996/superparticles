@@ -9,3 +9,8 @@ coverage/
 !.env.example
 .DS_Store
 Thumbs.db
+
+# Training outputs and local virtualenvs
+training/runs/
+__pycache__/
+.venv*/

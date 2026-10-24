@@ -4,10 +4,12 @@ import { gzipSync } from 'zlib';
 import { execFileSync } from 'child_process';
 
 const GZIP_BUDGET = 15000; // bytes, for everything a Canvas2D page loads
+// Loaded only on demand: GPU renderers and the optional Smart Particles (NCA) entry
+const OPTIONAL = /drawGL|drawGPU|nca|webgl2|webgpu|cpu-|embed/;
 
 // Library: entry + lazily loaded renderer/plugin chunks
 const result = await build({
-  entryPoints: ['src/index.ts'],
+  entryPoints: ['src/index.ts', { in: 'src/nca/index.ts', out: 'nca' }, 'src/embed.ts'],
   outdir: 'dist',
   bundle: true,
   minify: true,
@@ -43,7 +45,7 @@ let total = 0;
 for (const file of Object.keys(result.metafile.outputs).sort()) {
   const size = gz(file);
   console.log(`  ${file.padEnd(44)} ${kb(statSync(file).size).padStart(8)}  (${kb(size)} gzipped)`);
-  if (!/drawGL|drawGPU/.test(file)) total += size; // GPU renderers are only loaded when chosen
+  if (!OPTIONAL.test(file)) total += size;
 }
 console.log(`  Core + Canvas2D + plugins: ${total} bytes gzipped (budget ${GZIP_BUDGET})`);
 if (total > GZIP_BUDGET) {
