@@ -281,3 +281,122 @@ test('Smart Particles demo page grows the model and reacts to damage', async () 
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+// TF.js is loaded from jsDelivr by the training page; serve it from node_modules in tests
+async function routeTFJS(page) {
+  await page.route('https://cdn.jsdelivr.net/npm/@tensorflow/**', async route => {
+    const m = new URL(route.request().url()).pathname.match(/@tensorflow\/([^@]+)@[^/]+\/(.*)$/);
+    try {
+      const body = await readFile(join(root, 'node_modules', '@tensorflow', m[1], m[2]));
+      await route.fulfill({ status: 200, contentType: 'text/javascript', body });
+    } catch {
+      await route.fulfill({ status: 404 });
+    }
+  });
+}
+
+test('in-browser training: TF.js model matches PyTorch, learns, and exports a working model', async () => {
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await routeTFJS(page);
+  await page.goto(`${base}/test/fixtures/blank.html`);
+  await page.addScriptTag({ type: 'importmap', content: JSON.stringify({ imports: {
+    '@tensorflow/tfjs-core': 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.fesm.min.js',
+  } }) });
+  const r = await page.evaluate(async () => {
+    const tf = await import('@tensorflow/tfjs-core');
+    await tf.setBackend('webgl');
+    const { createNCA, createTrainer, modelFile, CHANNELS } = await import('/playground/nca-train.js');
+    const nca = await import('/dist/nca.js');
+    const f32 = b64 => new Float32Array(Uint8Array.from(atob(b64), c => c.charCodeAt(0)).buffer);
+
+    // 1. Parity with the PyTorch vectors (same weights, same hashed fire mask)
+    const doc = await (await fetch('/test/fixtures/random.nca.json')).json();
+    const vec = await (await fetch('/test/fixtures/random.vectors.json')).json();
+    const model = nca.parseModel(doc);
+    const net = createNCA(tf, model);
+    const S = vec.size, plane = S * S;
+    const chw = f32(vec.input), nhwc = new Float32Array(chw.length);
+    for (let c = 0; c < CHANNELS; c++) for (let i = 0; i < plane; i++) nhwc[i * CHANNELS + c] = chw[c * plane + i];
+    let x = tf.tensor4d(nhwc, [1, S, S, CHANNELS]);
+    for (let s = 0; s < vec.steps; s++) {
+      const m = new Float32Array(plane);
+      // same hash as the runtimes (model.ts); NCAGridCPU exposes it indirectly, so recompute here
+      for (let y = 0; y < S; y++) for (let xx = 0; xx < S; xx++) {
+        let h = Math.imul(xx, 0x8da6b343); h ^= Math.imul(y, 0xd8163841); h ^= Math.imul(vec.startStep + s, 0xcb1ab31f); h ^= vec.seed;
+        h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+        m[y * S + xx] = ((h >>> 0) >>> 8) < Math.floor(0.5 * (1 << 24)) ? 1 : 0;
+      }
+      const next = net.step(x, tf.tensor4d(m, [1, S, S, 1]));
+      x.dispose();
+      x = next;
+    }
+    const got = await x.data();
+    const want = f32(vec.output);
+    let parity = 0;
+    for (let c = 0; c < CHANNELS; c++) for (let i = 0; i < plane; i++) parity = Math.max(parity, Math.abs(got[i * CHANNELS + c] - want[c * plane + i]));
+
+    // 2. A short training run lowers the loss
+    const size = 24;
+    const target = new Float32Array(size * size * 4);
+    for (let y = 0; y < size; y++) for (let xx = 0; xx < size; xx++) {
+      if ((xx - 12) ** 2 + (y - 12) ** 2 < 36) { const i = (y * size + xx) * 4; target[i] = 0.9; target[i + 1] = 0.2; target[i + 2] = 0.3; target[i + 3] = 1; }
+    }
+    const trainer = createTrainer(tf, target, { size, batch: 2, pool: 16, rollout: [10, 14], damage: 0, steps: 60 });
+    const losses = [];
+    for (let i = 0; i < 60; i++) { const s = await trainer.trainStep(); losses.push(s.loss); s.preview.dispose(); }
+
+    // 3. Export -> load in the runtime -> same numbers as TF.js (float16 rounding aside)
+    const file = await trainer.toModelFile('test');
+    const loaded = nca.parseModel(file);
+    const grid = new nca.NCAGridCPU(loaded, { width: size, height: size });
+    grid.advance(10);
+    trainer.dispose();
+    return {
+      parity,
+      first: losses.slice(0, 5).reduce((a, b) => a + b) / 5,
+      last: losses.slice(-5).reduce((a, b) => a + b) / 5,
+      sha: file.sha256.length,
+      gridFinite: grid.state.every(Number.isFinite),
+      backend: tf.getBackend(),
+    };
+  });
+  assert.ok(r.parity < 1e-4, `TF.js vs PyTorch max abs error ${r.parity}`);
+  assert.ok(r.last < r.first * 0.8, `loss should fall (first ${r.first}, last ${r.last})`);
+  assert.equal(r.sha, 64);
+  assert.ok(r.gridFinite);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('training page: upload an image, train, stop, and hand the model to Smart Particles', { timeout: 900000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 1100, height: 750 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await routeTFJS(page);
+  await page.goto(`${base}/playground/train.html`);
+  await page.waitForFunction(() => window.__tfBackend, null, { timeout: 60000 });
+  // a 32x32 PNG made in the page itself
+  const png = await page.evaluate(async () => {
+    const c = new OffscreenCanvas(32, 32);
+    const g = c.getContext('2d');
+    g.fillStyle = '#e02850';
+    g.beginPath(); g.arc(16, 16, 12, 0, Math.PI * 2); g.fill();
+    const b = await c.convertToBlob({ type: 'image/png' });
+    return Array.from(new Uint8Array(await b.arrayBuffer()));
+  });
+  await page.selectOption('#detail', '32');
+  await page.setInputFiles('#file', { name: 'dot.png', mimeType: 'image/png', buffer: Buffer.from(png) });
+  await page.waitForFunction(() => !document.getElementById('start').disabled);
+  await page.click('#start');
+  // software GPUs (CI) need a minute or more for one full-size step
+  await page.waitForFunction(() => /Step [1-9]/.test(document.getElementById('status').textContent), null, { timeout: 400000 });
+  await page.click('#stop');
+  await page.waitForFunction(() => !document.getElementById('open').disabled, null, { timeout: 400000 });
+  const stored = await page.evaluate(() => { document.getElementById('open').click(); return JSON.parse(localStorage.getItem('sp_custom_model')); });
+  assert.equal(stored.format, 'superparticles-nca');
+  assert.equal(stored.grid.width, 32);
+  assert.deepEqual(errors, []);
+  await page.close();
+});

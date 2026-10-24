@@ -7,7 +7,17 @@ const params = new URLSearchParams(location.search);
 const MODELS = [
   { id: "heart", url: "../models/heart.nca.json", label: "Heart" },
 ];
-if (params.get("model")) MODELS.unshift({ id: "custom", url: params.get("model"), label: "Custom (from URL)" });
+if (params.get("model") === "local") {
+  // handed over by train.html
+  try {
+    const doc = JSON.parse(localStorage.getItem("sp_custom_model"));
+    if (doc) MODELS.unshift({ id: "custom", url: doc, label: "Your trained model" });
+  } catch (e) {
+    console.warn("No trained model found in this browser", e);
+  }
+} else if (params.get("model")) {
+  MODELS.unshift({ id: "custom", url: params.get("model"), label: "Custom (from URL)" });
+}
 
 let sp = null;
 let damageMark = null; // { step, mask } snapshot taken right before damage

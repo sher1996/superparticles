@@ -23,6 +23,7 @@ Then open:
 |---|---|
 | <http://localhost:8000/playground/> | Particle playground: renderers, plugins, presets |
 | <http://localhost:8000/playground/smart.html> | Smart Particles: a heart that grows from one cell. Click or drag to cut it, and watch it heal |
+| <http://localhost:8000/playground/train.html> | Train Smart Particles on your own image, in the browser (TensorFlow.js, loaded only on this page) |
 | <http://localhost:8000/playground/smart3d.html> | 3D proof of concept: a voxel planet with a ring, with PLY export for Blender |
 | <http://localhost:8000/playground/bench.html> | Benchmark for your own device, with copyable JSON results |
 
@@ -107,7 +108,7 @@ sp.reset();                 // back to a single seed cell
 Each cell holds 16 numbers (colour, opacity, and 12 hidden channels). Every step it looks at its 3×3 neighbourhood through fixed edge-detection filters and feeds what it sees into one small shared network (8,320 weights), which outputs a change to its own state. No cell knows the target shape. The shape comes from all of them running the same learned rule. During training the pattern is repeatedly damaged, so the rule also learns to repair it.
 
 - **Backends**: WebGPU compute shaders, WebGL2 float textures, or a CPU reference. All three reproduce the PyTorch definition exactly: the GPU paths match it within 1e-4, and the random update mask matches bit for bit.
-- **Train your own**: see [`training/README.md`](training/README.md). A 64×64 model trains in about 2 hours on 4 CPU cores.
+- **Train your own**: in the browser with `playground/train.html` (no Python, nothing uploaded), or with the PyTorch scripts in [`training/README.md`](training/README.md). The shipped 64×64 heart trained in a few hours on 4 CPU cores. Both trainers produce the same model format.
 - **3D**: `NCAGrid3DCPU` runs voxel models (16×16×16) and exports coloured point clouds.
 - **Research notes and measured results**: [`docs/research/chapter-6-nca.md`](docs/research/chapter-6-nca.md).
 

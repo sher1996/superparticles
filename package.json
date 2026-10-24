@@ -49,6 +49,8 @@
     "test:webgpu": "node --test test/nca-webgpu.test.mjs"
   },
   "devDependencies": {
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-webgpu": "^4.22.0",
     "@webgpu/types": "^0.1.69",
     "esbuild": "^0.23.0",
     "playwright": "^1.63.0",
