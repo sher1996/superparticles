@@ -30,23 +30,17 @@ jobs:
       run: npm run build
 
     - name: Unit tests
-      run: npm test
+      run: scripts/ci-test.sh test
 
     - name: Install Chromium
       run: npx playwright install --with-deps chromium
 
     - name: Browser tests
-      run: npm run test:browser
+      run: scripts/ci-test.sh test:browser
 
     # Real WebGPU compute shaders via Dawn + Chromium's SwiftShader Vulkan driver
     - name: WebGPU compute tests
-      run: |
-        set -o pipefail
-        if ! npm run test:webgpu 2>&1 | tee webgpu.log; then
-          # surface the failure as an annotation (readable without downloading logs)
-          echo "::error title=WebGPU compute tests::$(grep -v '^ *at ' webgpu.log | tail -c 3000 | tr '\n' ' ')"
-          exit 1
-        fi
+      run: scripts/ci-test.sh test:webgpu
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
