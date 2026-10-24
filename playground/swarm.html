@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart Swarm</title>
+  <link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+  <canvas id="nca" aria-label="Learned swarm: click or drag to scatter particles"></canvas>
+
+  <aside id="panel">
+    <section>
+      <h3>Smart Swarm <span class="note">(research prototype)</span></h3>
+      <p class="note">Free-moving smart particles. Each particle only senses neighbours within a small radius, and every particle runs the same network (6,144 weights), which decides its colour change and where to move. Together they assemble the shape from a shapeless blob. <strong>Click or drag to throw particles away</strong> and watch them find their way back.</p>
+    </section>
+    <section>
+      <div class="row">
+        <button id="play" aria-pressed="true">Pause</button>
+        <button id="reset">Reset to blob</button>
+        <button id="scatter" class="danger">Scatter a third</button>
+      </div>
+    </section>
+    <section>
+      <label class="slider-label" for="speed"><span>Steps per frame</span><span id="speed-value">1</span></label>
+      <input id="speed" type="range" min="1" max="6" value="1" />
+    </section>
+    <section class="divider">
+      <div id="stats" class="note">step 0</div>
+      <p class="note"><a href="./smart.html">← Grid Smart Particles</a> · <a href="./index.html">Particle playground</a></p>
+    </section>
+  </aside>
+
+  <script type="module">
+    import { createSwarm } from "../dist/nca.js";
+    const $ = (id) => document.getElementById(id);
+    const params = new URLSearchParams(location.search);
+    const view = await createSwarm($("nca"), { model: params.get("model") || "../models/swarm-heart.swarm.json", seed: Number(params.get("seed") || 0) });
+    window.swarm = view;
+    const sync = () => { $("play").textContent = view.paused ? "Play" : "Pause"; $("play").setAttribute("aria-pressed", String(!view.paused)); };
+    $("play").onclick = () => { view.paused ? view.resume() : view.pause(); sync(); };
+    $("reset").onclick = () => view.reset();
+    $("scatter").onclick = () => { view.sim.scatter((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, 0.45); view.draw(); };
+    $("speed").oninput = (e) => { $("speed-value").textContent = e.target.value; view.stepsPerFrame = Number(e.target.value); };
+    setInterval(() => { $("stats").textContent = `step ${view.sim.step} · ${view.sim.n} particles · seed ${view.sim.seed}`; }, 250);
+    sync();
+  </script>
+</body>
+</html>

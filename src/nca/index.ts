@@ -11,6 +11,8 @@ import { NCAGridCPU } from './cpu.js';
 
 export { loadModel, parseModel, NCAGridCPU, seedState };
 export { NCAGrid3DCPU } from './cpu3d.js';
+export { SwarmCPU, SwarmView, createSwarm, parseSwarm, loadSwarm } from './swarm.js';
+export type { SwarmModel, SwarmModelFile, SwarmViewOptions } from './swarm.js';
 export type { NCAModel, NCAModelFile, NCABackendKind, DrawParams };
 
 export interface SmartParticlesOptions {

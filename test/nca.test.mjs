@@ -101,3 +101,34 @@ test('3D voxel reference reproduces the PyTorch rollout', () => {
   assert.ok(maxErr < 1e-4, `max abs error ${maxErr}`);
   assert.ok(grid.points().length % 7 === 0);
 });
+
+test('learned swarm: JS runtime reproduces the PyTorch rollout', async () => {
+  const { outputFiles } = await build({
+    stdin: { contents: `export * from './src/nca/swarm.ts';`, resolveDir: process.cwd(), loader: 'ts' },
+    bundle: true, format: 'esm', platform: 'neutral', write: false,
+  });
+  const sw = await import('data:text/javascript;base64,' + Buffer.from(outputFiles[0].text).toString('base64'));
+  const doc = JSON.parse(readFileSync('test/fixtures/random.swarm.json', 'utf8'));
+  const v = JSON.parse(readFileSync('test/fixtures/random.swarm-vectors.json', 'utf8'));
+  const m = sw.parseSwarm(doc);
+  assert.equal(m.w1.length, m.hidden * (4 * m.channels + 1));
+  const sim = new sw.SwarmCPU(m, { particles: v.particles, seed: v.seed });
+  sim.pos.set(f32(v.pos));
+  sim.state.set(f32(v.state));
+  const start = Array.from(sim.pos);
+  sim.advance(v.steps);
+  const wantPos = f32(v.outPos), wantState = f32(v.outState);
+  let errP = 0, errS = 0, moved = 0;
+  for (let i = 0; i < wantPos.length; i++) {
+    errP = Math.max(errP, Math.abs(sim.pos[i] - wantPos[i]));
+    moved = Math.max(moved, Math.abs(wantPos[i] - start[i]));
+  }
+  // states grow large with these random weights, so compare relative to magnitude (float32 precision)
+  for (let i = 0; i < wantState.length; i++) errS = Math.max(errS, Math.abs(sim.state[i] - wantState[i]) / Math.max(1, Math.abs(wantState[i])));
+  assert.ok(moved > 0.01, 'particles should actually move in the vector');
+  assert.ok(errP < 1e-4, `position error ${errP}`);
+  assert.ok(errS < 1e-5, `relative state error ${errS}`);
+  // reset() is deterministic per seed
+  const a = new sw.SwarmCPU(m, { seed: 9 }), b = new sw.SwarmCPU(m, { seed: 9 });
+  assert.deepEqual(Array.from(a.pos), Array.from(b.pos));
+});
