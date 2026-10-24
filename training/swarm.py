@@ -12,7 +12,7 @@ Perception for particle i, with weights w_ij = max(0, 1 - d_ij / R)^2 over j != 
   weighted mean of (offset_x / R) * s_j            (C)   "where is which state", like Sobel x
   weighted mean of (offset_y / R) * s_j            (C)   like Sobel y
   log(1 + sum of weights)                         (1)   local density
--> MLP (4C+1 -> HIDDEN -> C+2) -> [delta state, velocity]
+-> MLP (4C+1 -> HIDDEN -> C+2) -> [delta state, velocity]; states are clamped to [-3, 3]
 Positions live in [-1, 1]^2. Particles update stochastically (hash mask at runtime).
 """
 
@@ -27,6 +27,7 @@ C = 12          # state channels: RGB + 9 hidden
 HIDDEN = 96
 RADIUS = 0.22
 SPEED = 0.03    # max distance per step
+STATE_LIMIT = 3.0  # states are clamped to [-3, 3]; unbounded states blew up training
 FIRE_RATE = 0.5
 
 
@@ -58,7 +59,7 @@ class Swarm(nn.Module):
             fire = (torch.rand(pos.shape[:2], device=pos.device) <= FIRE_RATE).float()[..., None]
         # bounded step: tanh keeps the swarm stable during long rollouts
         pos = (pos + SPEED * torch.tanh(v) * fire).clamp(-1, 1)
-        state = state + ds * fire
+        state = (state + ds * fire).clamp(-STATE_LIMIT, STATE_LIMIT)
         return pos, state
 
     def param_count(self):

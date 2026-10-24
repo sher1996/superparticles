@@ -17,6 +17,8 @@ export interface SwarmModelFile {
   hidden: number;
   radius: number;
   speed: number;
+  /** States are clamped to ±stateLimit after each update (default 3). */
+  stateLimit?: number;
   fireRate: number;
   dtype: 'float16' | 'float32';
   weights: Record<'w1' | 'b1' | 'w2', { shape: number[]; data: string }>;
@@ -31,6 +33,7 @@ export interface SwarmModel {
   hidden: number;
   radius: number;
   speed: number;
+  stateLimit: number;
   fireRate: number;
   w1: Float32Array; // (hidden, 4C + 1)
   b1: Float32Array; // (hidden)
@@ -54,7 +57,7 @@ export function parseSwarm(doc: SwarmModelFile): SwarmModel {
   };
   return {
     name: doc.name, particles: doc.particles, channels: C, hidden: H,
-    radius: doc.radius, speed: doc.speed, fireRate: doc.fireRate,
+    radius: doc.radius, speed: doc.speed, stateLimit: doc.stateLimit ?? 3, fireRate: doc.fireRate,
     w1: read('w1', [H, 4 * C + 1]), b1: read('b1', [H]), w2: read('w2', [C + 2, H]),
     metrics: doc.metrics,
   };
@@ -166,7 +169,7 @@ export class SwarmCPU {
         let s = 0;
         const row = o * H;
         for (let h = 0; h < H; h++) s += w2[row + h] * hid[h];
-        if (o < C) nextState[i * C + o] = state[i * C + o] + s;
+        if (o < C) nextState[i * C + o] = Math.min(model.stateLimit, Math.max(-model.stateLimit, state[i * C + o] + s));
         else {
           const k = 2 * i + (o - C);
           nextPos[k] = Math.min(1, Math.max(-1, pos[k] + model.speed * Math.tanh(s)));

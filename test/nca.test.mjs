@@ -123,11 +123,11 @@ test('learned swarm: JS runtime reproduces the PyTorch rollout', async () => {
     errP = Math.max(errP, Math.abs(sim.pos[i] - wantPos[i]));
     moved = Math.max(moved, Math.abs(wantPos[i] - start[i]));
   }
-  // states grow large with these random weights, so compare relative to magnitude (float32 precision)
-  for (let i = 0; i < wantState.length; i++) errS = Math.max(errS, Math.abs(sim.state[i] - wantState[i]) / Math.max(1, Math.abs(wantState[i])));
+  // states are clamped to ±3, so an absolute tolerance works like the other parity tests
+  for (let i = 0; i < wantState.length; i++) errS = Math.max(errS, Math.abs(sim.state[i] - wantState[i]));
   assert.ok(moved > 0.01, 'particles should actually move in the vector');
   assert.ok(errP < 1e-4, `position error ${errP}`);
-  assert.ok(errS < 1e-5, `relative state error ${errS}`);
+  assert.ok(errS < 1e-4, `state error ${errS}`);
   // reset() is deterministic per seed
   const a = new sw.SwarmCPU(m, { seed: 9 }), b = new sw.SwarmCPU(m, { seed: 9 });
   assert.deepEqual(Array.from(a.pos), Array.from(b.pos));
