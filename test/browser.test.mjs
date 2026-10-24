@@ -450,3 +450,22 @@ test('Smart Particles page records a video and produces embed code', async () =>
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+test('3D viewer grows the planet, takes damage and exports a PLY', async () => {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 700 }, acceptDownloads: true });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`${base}/playground/smart3d.html`);
+  await page.waitForFunction(() => window.smart3d);
+  await page.click('#play'); // pause; drive steps directly
+  const grown = await page.evaluate(() => { const g = window.smart3d; g.plant(); g.advance(120); return g.points().length / 7; });
+  assert.ok(grown > 250 && grown < 700, `expected a planet-sized shape, got ${grown} voxels`);
+  await page.click('#slice');
+  const cut = await page.evaluate(() => window.smart3d.points().length / 7);
+  assert.ok(cut < grown * 0.75, 'cutting the front half removes voxels');
+  const download = page.waitForEvent('download');
+  await page.click('#ply');
+  assert.match((await download).suggestedFilename(), /\.ply$/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});

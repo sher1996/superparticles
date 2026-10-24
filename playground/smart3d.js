@@ -24,7 +24,7 @@ function draw() {
   const n = pts.length / 7;
   const c = (grid.W - 1) / 2;
   const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
-  const scale = Math.min(canvas.width, canvas.height) / (grid.W * 1.9);
+  const scale = Math.min(canvas.width, canvas.height) / (grid.W * 1.25);
   const proj = new Float32Array(n * 3);
   const order = new Uint32Array(n);
   for (let i = 0; i < n; i++) {

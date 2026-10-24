@@ -43,7 +43,7 @@ This file separates what has been **verified** (by a test in this repo, or by a 
 | Model | Status | Metrics |
 |---|---|---|
 | `models/heart.nca.json` (2D, 64×64) | trained: 3,000 steps, about 1.9 h of compute on 4 CPU cores, 23 KB | growth IoU **0.77** (gate 0.85, **missed**), at alpha > 0.5 **0.93**; after 1,000 steps 0.73; recovery IoU **0.73** (gate 0.80, **missed**), which is **95%** of its own undamaged shape; NaN-free ✓. Visually it grows, holds and heals cleanly; the IoU misses come from a faint fringe of low-opacity cells and an unlearned pink highlight. Continued training to 5,000 steps is queued. |
-| `models/planet3d.nca.json` (3D, 16³) | queued after the heart | _pending_ |
+| `models/planet3d.nca.json` (3D, 16³) | trained: 1,500 steps, 26 min of compute on 4 CPU cores, 22 KB | growth IoU **0.92** (gate 0.85, **passed**), at alpha > 0.5 0.97; recovery IoU **0.75** (gate 0.80, **missed**) = 81% of its intact shape; front-half cut 0.66; NaN-free ✓. **Not stable long-term:** the IoU falls to 0.37 by step 600 because it keeps growing (989 voxels vs 412), since it only ever trained on 32–48-step runs. Continued training with 64–128-step runs is queued. |
 | `models/swarm-heart.swarm.json` (moving particles) | queued after the 3D run | _pending_ |
 
 The gates from the research plan are growth IoU ≥ 0.85, recovery IoU ≥ 0.80 and NaN-free 1,000-step rollouts. They are measured by `training/evaluate.py` with the same hashed mask the browser uses.
