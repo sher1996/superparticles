@@ -40,7 +40,13 @@ jobs:
 
     # Real WebGPU compute shaders via Dawn + Chromium's SwiftShader Vulkan driver
     - name: WebGPU compute tests
-      run: npm run test:webgpu
+      run: |
+        set -o pipefail
+        if ! npm run test:webgpu 2>&1 | tee webgpu.log; then
+          # surface the failure as an annotation (readable without downloading logs)
+          echo "::error title=WebGPU compute tests::$(grep -v '^ *at ' webgpu.log | tail -c 3000 | tr '\n' ' ')"
+          exit 1
+        fi
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
