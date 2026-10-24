@@ -19,7 +19,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "node build.js",
-    "start": "esbuild --serve=8000 --servedir=.",
+    "start": "esbuild --serve=0.0.0.0:8000 --servedir=.",
     "typecheck": "tsc -p .",
     "test": "node --test test/core.test.mjs",
     "test:browser": "node --test test/browser.test.mjs"
