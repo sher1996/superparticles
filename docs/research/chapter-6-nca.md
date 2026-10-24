@@ -66,7 +66,18 @@ Double buffering matters: each cell must read the previous generation. Updating 
 
 ## 5. Results
 
-_Filled in from `training/runs/*/metrics.json` once training completes; see `STATUS.md`._
+**Heart, 64×64, 3,000 steps** (about 1.9 h of compute on 4 CPU cores; seed 0; `training/evaluate.py`, hashed mask seed 7):
+
+| Metric | Value | Gate |
+|---|---|---|
+| Growth IoU after 200 steps (alpha > 0.1) | 0.766 | ≥ 0.85, missed |
+| Growth IoU at alpha > 0.5 (diagnostic) | 0.929 | — |
+| IoU after 1,000 steps (persistence) | 0.729 | — |
+| Recovery IoU, 128 steps after one of 16 random holes | 0.731 (worst 0.685) | ≥ 0.80, missed |
+| Recovery relative to its own undamaged shape (diagnostic) | 95.4% | — |
+| NaN/inf in any rollout | none | required ✓ |
+
+**Reading these numbers honestly.** The model does what the chapter set out to show: a single seed grows into the heart, the shape stays stable for 1,000+ steps, and every tested hole regrows to about 95% of the undamaged shape. In the browser, a hole that removed 30% of the cells refilled completely within 150 steps. It misses the IoU gates for two reasons that are visible in `evaluation.png`: (1) a faint fringe of low-opacity cells just outside the edge counts as "alive" at the 0.1 threshold, and (2) the small pink highlight in the target is not reproduced. Both are known effects of a short training run (the original paper trains 8,000 steps on a GPU). The run is being continued to 5,000 steps. The gates stay as they are; they were not relaxed to make this pass.
 
 ## 6. Moving smart particles (research prototype)
 

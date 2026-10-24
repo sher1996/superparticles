@@ -11,6 +11,9 @@ Metrics (thresholds are the project's Chapter 6 gates, see docs/research/chapter
   recovery_iou    mean IoU 128 steps after cutting a hole, over 16 hole positions
   recovered_frac  fraction of those holes with recovery IoU >= 0.80
   nan_free        no NaN/inf in any rollout
+Diagnostics (not gates):
+  growth_iou_solid    IoU at alpha > 0.5, ignoring the faint fringe a soft-edged model grows
+  recovery_vs_intact  recovery IoU / growth IoU: how much of its own undamaged shape it regrows
 """
 
 import json
@@ -61,6 +64,7 @@ def main() -> None:
         x = run(model, seed_state(1, size), 0, 200, seed)
         grown = x
         growth = iou(to_rgba(x[0]), target)
+        growth_solid = iou(to_rgba(x[0]), target, threshold=0.5)
         x1000 = run(model, x, 200, 800, seed)
         persist = iou(to_rgba(x1000[0]), target)
         finite = bool(torch.isfinite(x1000).all())
@@ -85,6 +89,8 @@ def main() -> None:
         "recovery_min": round(float(np.min(recov)), 4),
         "recovered_frac": round(float(np.mean([r >= 0.8 for r in recov])), 4),
         "nan_free": finite,
+        "growth_iou_solid": round(growth_solid, 4),
+        "recovery_vs_intact": round(float(np.mean(recov)) / max(growth, 1e-6), 4),
         "checkpoint_step": ckpt["step"],
     }
     gates = {

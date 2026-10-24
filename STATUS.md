@@ -42,7 +42,7 @@ This file separates what has been **verified** (by a test in this repo, or by a 
 
 | Model | Status | Metrics |
 |---|---|---|
-| `models/heart.nca.json` (2D, 64×64) | training (3,000 steps, 4 CPU cores) | _pending: growth / persistence / recovery IoU_ |
+| `models/heart.nca.json` (2D, 64×64) | trained: 3,000 steps, about 1.9 h of compute on 4 CPU cores, 23 KB | growth IoU **0.77** (gate 0.85, **missed**), at alpha > 0.5 **0.93**; after 1,000 steps 0.73; recovery IoU **0.73** (gate 0.80, **missed**), which is **95%** of its own undamaged shape; NaN-free ✓. Visually it grows, holds and heals cleanly; the IoU misses come from a faint fringe of low-opacity cells and an unlearned pink highlight. Continued training to 5,000 steps is queued. |
 | `models/planet3d.nca.json` (3D, 16³) | queued after the heart | _pending_ |
 | `models/swarm-heart.swarm.json` (moving particles) | queued after the 3D run | _pending_ |
 
