@@ -184,7 +184,7 @@ void main() {
 type StateSet = { tex: WebGLTexture[]; fbo: WebGLFramebuffer };
 
 export function createWebGL2NCA(canvas: HTMLCanvasElement, model: NCAModel, width: number, height: number): NCABackend {
-  if (model.channels !== 16 || model.hidden !== 128) throw new Error('WebGL2 NCA backend needs a 16-channel, 128-hidden model');
+  if (model.dims !== 2 || model.channels !== 16 || model.hidden !== 128) throw new Error('WebGL2 NCA backend needs a 16-channel, 128-hidden model');
   const gl = canvas.getContext('webgl2', { premultipliedAlpha: false });
   if (!gl) throw new Error('WebGL2 unavailable');
   if (!gl.getExtension('EXT_color_buffer_float')) throw new Error('WebGL2 float render targets unavailable');

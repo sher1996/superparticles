@@ -10,6 +10,7 @@ import { seedState, fitGrid, type NCABackend, type NCABackendKind, type DrawPara
 import { NCAGridCPU } from './cpu.js';
 
 export { loadModel, parseModel, NCAGridCPU, seedState };
+export { NCAGrid3DCPU } from './cpu3d.js';
 export type { NCAModel, NCAModelFile, NCABackendKind, DrawParams };
 
 export interface SmartParticlesOptions {

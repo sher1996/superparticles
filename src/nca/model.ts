@@ -14,10 +14,12 @@ export interface NCAModelFile {
   name: string;
   channels: number;
   hidden: number;
-  perception: 'identity+sobel3x3';
+  perception: 'identity+sobel3x3' | 'identity+sobel3x3x3';
+  /** 2 (default) or 3 for voxel models. */
+  dims?: 2 | 3;
   fireRate: number;
   aliveThreshold: number;
-  grid: { width: number; height: number };
+  grid: { width: number; height: number; depth?: number };
   seed: 'center';
   dtype: 'float16' | 'float32';
   weights: Record<'w1' | 'b1' | 'w2', { shape: number[]; data: string }>;
@@ -28,12 +30,17 @@ export interface NCAModelFile {
 
 export interface NCAModel {
   name: string;
+  dims: 2 | 3;
   channels: number;
   hidden: number;
   fireRate: number;
   aliveThreshold: number;
   width: number;
   height: number;
+  /** 1 for 2D models. */
+  depth: number;
+  /** Perception inputs per channel: 3 in 2D (identity, sobel x/y), 4 in 3D (+ sobel z). */
+  kernels: number;
   w1: Float32Array;
   b1: Float32Array;
   w2: Float32Array;
@@ -43,7 +50,10 @@ export interface NCAModel {
 export function parseModel(doc: NCAModelFile): NCAModel {
   if (doc.format !== 'superparticles-nca') throw new Error('Not a SuperParticles NCA model');
   if (doc.version !== 1) throw new Error(`Unsupported NCA model version ${doc.version}`);
-  if (doc.perception !== 'identity+sobel3x3') throw new Error(`Unsupported perception "${doc.perception}"`);
+  const dims = doc.dims ?? 2;
+  const expected = dims === 3 ? 'identity+sobel3x3x3' : 'identity+sobel3x3';
+  if (doc.perception !== expected) throw new Error(`Unsupported perception "${doc.perception}" for a ${dims}D model`);
+  const K = dims === 3 ? 4 : 3;
   const C = doc.channels, Hd = doc.hidden;
   const read = (k: 'w1' | 'b1' | 'w2', expect: number[]) => {
     const t = doc.weights[k];
@@ -54,13 +64,16 @@ export function parseModel(doc: NCAModelFile): NCAModel {
   };
   return {
     name: doc.name,
+    dims,
     channels: C,
     hidden: Hd,
     fireRate: doc.fireRate,
     aliveThreshold: doc.aliveThreshold,
     width: doc.grid.width,
     height: doc.grid.height,
-    w1: read('w1', [Hd, 3 * C]),
+    depth: doc.grid.depth ?? 1,
+    kernels: K,
+    w1: read('w1', [Hd, K * C]),
     b1: read('b1', [Hd]),
     w2: read('w2', [C, Hd]),
     metrics: doc.metrics,

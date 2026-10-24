@@ -1,7 +1,25 @@
 {
   "name": "superparticles",
-  "version": "0.1.0-alpha",
+  "version": "0.2.0-alpha.1",
   "description": "Ultra-light TypeScript particle engine with Canvas2D, WebGL2 and WebGPU renderers and a plugin system",
+  "keywords": [
+    "particles",
+    "webgpu",
+    "webgl2",
+    "canvas",
+    "neural-cellular-automata",
+    "nca",
+    "generative",
+    "creative-coding"
+  ],
+  "homepage": "https://github.com/sher1996/superparticles#readme",
+  "bugs": {
+    "url": "https://github.com/sher1996/superparticles/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sher1996/superparticles.git"
+  },
   "license": "MIT",
   "type": "module",
   "main": "dist/index.js",
@@ -18,7 +36,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "models"
   ],
   "sideEffects": false,
   "scripts": {

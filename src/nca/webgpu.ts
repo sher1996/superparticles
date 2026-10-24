@@ -193,7 +193,7 @@ export async function createWebGPUNCA(
   height: number,
   opts: WebGPUNCAOptions = {},
 ): Promise<NCABackend> {
-  if (model.channels !== 16 || model.hidden !== 128) throw new Error('WebGPU NCA backend needs a 16-channel, 128-hidden model');
+  if (model.dims !== 2 || model.channels !== 16 || model.hidden !== 128) throw new Error('WebGPU NCA backend needs a 16-channel, 128-hidden model');
   let device = opts.device;
   if (!device) {
     const adapter = await navigator.gpu?.requestAdapter();

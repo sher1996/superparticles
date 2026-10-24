@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 
 const { outputFiles } = await build({
   stdin: {
-    contents: `export * from './src/nca/model.ts'; export * from './src/nca/cpu.ts';`,
+    contents: `export * from './src/nca/model.ts'; export * from './src/nca/cpu.ts'; export * from './src/nca/cpu3d.ts';`,
     resolveDir: process.cwd(),
     loader: 'ts',
   },
@@ -78,4 +78,26 @@ test('damage clears a disc and plant resets the step counter', () => {
   g.plant();
   assert.equal(g.step, 0);
   assert.equal(g.state[3 * plane + 8 * 16 + 8], 1);
+});
+
+test('3D voxel reference reproduces the PyTorch rollout', () => {
+  const doc3 = JSON.parse(readFileSync('test/fixtures/random3d.nca.json', 'utf8'));
+  const vec3 = JSON.parse(readFileSync('test/fixtures/random3d.vectors.json', 'utf8'));
+  const m = nca.parseModel(doc3);
+  assert.equal(m.dims, 3);
+  assert.equal(m.w1.length, m.hidden * 64);
+  assert.throws(() => new nca.NCAGridCPU(m), /3D/);
+  const grid = new nca.NCAGrid3DCPU(m, { size: vec3.size, seed: vec3.seed });
+  grid.state.set(f32(vec3.input));
+  grid.step = vec3.startStep;
+  grid.advance(vec3.steps);
+  const want = f32(vec3.output);
+  let maxErr = 0, live = 0;
+  for (let i = 0; i < want.length; i++) {
+    maxErr = Math.max(maxErr, Math.abs(grid.state[i] - want[i]));
+    if (want[i] !== 0) live++;
+  }
+  assert.ok(live > 50, `vector should exercise live voxels (${live})`);
+  assert.ok(maxErr < 1e-4, `max abs error ${maxErr}`);
+  assert.ok(grid.points().length % 7 === 0);
 });

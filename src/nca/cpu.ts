@@ -19,6 +19,7 @@ export class NCAGridCPU {
   private hidden: Float64Array;
 
   constructor(readonly model: NCAModel, opts: { width?: number; height?: number; seed?: number } = {}) {
+    if (model.dims !== 2) throw new Error('NCAGridCPU runs 2D models; use NCAGrid3DCPU for voxel models');
     this.C = model.channels;
     this.W = opts.width ?? model.width;
     this.H = opts.height ?? model.height;
