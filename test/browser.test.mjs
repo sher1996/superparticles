@@ -460,6 +460,9 @@ test('3D viewer grows the planet, takes damage and exports a PLY', async () => {
   await page.click('#play'); // pause; drive steps directly
   const grown = await page.evaluate(() => { const g = window.smart3d; g.plant(); g.advance(120); return g.points().length / 7; });
   assert.ok(grown > 250 && grown < 700, `expected a planet-sized shape, got ${grown} voxels`);
+  // stays stable: no runaway growth over a long run
+  const later = await page.evaluate(() => { window.smart3d.advance(480); return window.smart3d.points().length / 7; });
+  assert.ok(later > grown * 0.8 && later < grown * 1.25, `shape should hold (${grown} -> ${later} voxels)`);
   await page.click('#slice');
   const cut = await page.evaluate(() => window.smart3d.points().length / 7);
   assert.ok(cut < grown * 0.75, 'cutting the front half removes voxels');

@@ -81,6 +81,8 @@ Double buffering matters: each cell must read the previous generation. Updating 
 
 **Continued to 5,000 steps** (same recipe, a further 1.5 h): growth IoU 0.766 → **0.821**, persistence 0.729 → **0.791**, recovery 0.731 → **0.790** (worst 0.731), holes recovered to ≥ 0.80: 0/16 → **9/16**, and recovery relative to its intact shape 95.4% → **96.3%**. It is now just short of both gates. More training is the obvious next step: the loss was still falling, and the original paper used 8,000 steps. A small loss term that discourages low-alpha fringe cells is another option, still to be tested.
 
+**3D planet, 16³ voxels.** After 1,500 steps trained on 32–48-step runs, it grew the planet well (IoU 0.92) but never learned to stop: by step 600 it had overgrown to 989 voxels (target 412, IoU 0.37). Continuing on 64–128-step runs fixed this within 200 steps: growth IoU **0.979**, persistence after 600 steps **0.951**, recovery after random holes **0.959** (worst 0.936), front half cut away **0.812**. **All gates passed.** The lesson: training runs must be longer than the time over which the shape has to stay stable.
+
 ## 6. Moving smart particles (research prototype)
 
 Grid NCAs only recolour cells that stay in place. To get closer to "particles that can form anything", `training/swarm.py` gives each particle a **position** and a 12-channel **state**:
