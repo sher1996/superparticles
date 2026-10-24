@@ -469,3 +469,35 @@ test('3D viewer grows the planet, takes damage and exports a PLY', async () => {
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+test('Smart Swarm page: particles assemble, scatter on click, and reset', async () => {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await page.goto(`${base}/playground/swarm.html`);
+  await page.waitForFunction(() => window.swarm);
+  await page.click('#play'); // pause; drive steps directly
+  const r = await page.evaluate(() => {
+    const v = window.swarm;
+    v.reset();
+    const spread = () => {
+      const p = v.sim.pos; let s = 0;
+      for (let i = 0; i < v.sim.n; i++) s += Math.hypot(p[2 * i], p[2 * i + 1]);
+      return s / v.sim.n;
+    };
+    const start = spread();
+    v.advance(150);
+    const grown = spread();
+    const before = Array.from(v.sim.pos);
+    v.sim.scatter(0, 0, 0.5);
+    const moved = v.sim.pos.some((x, i) => x !== before[i]);
+    v.reset();
+    return { start, grown, moved, step: v.sim.step, finite: v.sim.pos.every(Number.isFinite) };
+  });
+  assert.ok(r.grown > r.start * 2, `the blob should spread into a shape (${r.start} -> ${r.grown})`);
+  assert.ok(r.moved, 'scatter moves particles');
+  assert.equal(r.step, 0);
+  assert.ok(r.finite);
+  assert.deepEqual(errors, []);
+  await page.close();
+});

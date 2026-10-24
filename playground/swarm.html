@@ -12,7 +12,8 @@
   <aside id="panel">
     <section>
       <h3>Smart Swarm <span class="note">(research prototype)</span></h3>
-      <p class="note">Free-moving smart particles. Each particle only senses neighbours within a small radius, and every particle runs the same network (6,144 weights), which decides its colour change and where to move. Together they assemble the shape from a shapeless blob. <strong>Click or drag to throw particles away</strong> and watch them find their way back.</p>
+      <p class="note">Free-moving smart particles. Each particle only senses neighbours within a small radius (plus its own position), and every particle runs the same network (6,336 weights), which decides its colour change and where to move. <strong>Click or drag to push particles apart</strong> and watch them regroup.</p>
+      <p class="note"><strong>Honest status:</strong> this early model gathers a blob into a stable, structured formation and re-forms it after scattering, but it does not yet draw the heart it was trained on (it covers about half of it), and its colours are not learned yet. See STATUS.md.</p>
     </section>
     <section>
       <div class="row">

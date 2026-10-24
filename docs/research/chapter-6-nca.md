@@ -92,6 +92,19 @@ Grid NCAs only recolour cells that stay in place. To get closer to "particles th
 
 What the prototype tests is whether one local rule can steer freely moving units into a shape and back after disruption. It does not yet handle collisions, particle birth and death, or 3D.
 
+**What six training runs taught us** (each failure and its fix):
+
+| Run | Symptom | Cause | Fix |
+|---|---|---|---|
+| 1 | loss exploded to 6,852 once damage started | states had no bound | clamp states to ±3 |
+| 2 | worse after damage, Chamfer 0.02 → 0.32 | damage threw particles out of sensing range, so they had no information to return with | push damaged particles at most 0.35 away |
+| 3 | final model covered 10%; particles piled up at x = 1 | the hard position clamp had zero gradient, so stuck particles could never be pulled back | weak tether toward the centre (1% per step), safety bound at ±1.5 |
+| 4 | a heart-like cluster formed, then the whole shape slid away | the rule only saw relative offsets: translation invariant, it knows the shape but not where | each particle also reads its own (x, y), like a morphogen gradient |
+| 5 | still assembled then slid | the loss only checked the last step, so nothing rewarded stopping | average the loss over the last 8 steps, light movement penalty; pick checkpoints by 150-step coverage |
+| 6 | best 0.50 coverage at step 200, then swings between 0.02 and 0.50 | training is unstable under damage | open; shipped the best checkpoint |
+
+**Result.** The best model covers half of the target after 150 steps, holds a structured formation (0.36 after 600 steps), and fully re-forms after a third of the swarm is pushed apart: 100% of its intact coverage. It does not yet reproduce the heart outline or colours. Free-moving smart particles are therefore a partial result: self-organisation and repair work, but precise shapes don't yet. Promising next steps are a curriculum (assembly only first, damage added gradually), a stronger colour term, more particles with spatial hashing, and an orientation-free perception, so the rule doesn't depend on world axes.
+
 ## 7. What this is, and what it isn't
 
 - It **is** a working, reproducible instance of learned local behaviour: growth, persistence and repair of one specific target, from one shared rule.
