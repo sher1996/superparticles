@@ -442,8 +442,9 @@ test('Smart Particles page records a video and produces embed code', async () =>
   await page.click('#record');
   const file = await download;
   assert.match(file.suggestedFilename(), /^smart-particles-.*\.(webm|mp4)$/);
-  await page.click('#embed').catch(() => {});
-  const code = await page.evaluate(() => window.__embedCode);
+  page.on('dialog', d => d.dismiss()); // clipboard fallback prompt, if the clipboard is unavailable
+  await page.click('#embed');
+  const code = await (await page.waitForFunction(() => window.__embedCode, null, { timeout: 10000 })).jsonValue();
   assert.match(code, /data-smart-particles data-model="http[^"]+heart\.nca\.json"/);
   assert.match(code, /dist\/embed\.js/);
   assert.deepEqual(errors, []);

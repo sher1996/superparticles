@@ -143,13 +143,13 @@ $("embed").onclick = async () => {
   const modelUrl = typeof m.url === "string" ? new URL(m.url, location.href).href : "https://your-site.example/models/custom.nca.json";
   const code = `<canvas data-smart-particles data-model="${modelUrl}" style="width:400px;height:400px"></canvas>\n` +
     `<script type="module" src="https://cdn.jsdelivr.net/npm/superparticles@0.2.0-alpha.1/dist/embed.js"></` + `script>`;
+  window.__embedCode = code; // set first: the clipboard call can wait on a permission prompt
   try {
     await navigator.clipboard.writeText(code);
     $("share-note").textContent = "Embed code copied. Host the model file next to your page; the CDN link works once the package is published to npm.";
   } catch {
     prompt("Copy this embed code:", code);
   }
-  window.__embedCode = code;
 };
 
 // Mark pointer damage too (the canvas cuts holes itself)
