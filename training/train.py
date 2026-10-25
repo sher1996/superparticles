@@ -21,12 +21,30 @@ import numpy as np
 import torch
 
 from nca import NCA, damage, lr_schedule, seed_state, to_rgba
-from targets import TARGETS
+from targets import TARGETS, from_image
+
+
+def load_target(name: str, size: int, pad: int):
+    return TARGETS[name](size, pad) if name in TARGETS else from_image(name, size, pad)
+
+
+def snapshot(model, size, step, folder):
+    """Grow from a seed with the current weights (deterministic mask) and save what it makes."""
+    from PIL import Image
+    from nca import hash_fire_mask
+    folder.mkdir(parents=True, exist_ok=True)
+    with torch.no_grad():
+        x = seed_state(1, size)
+        for s in range(150):
+            x = model(x, hash_fire_mask(size, size, s, 7))
+    a = x[0, :4].clamp(0, 1).numpy().transpose(1, 2, 0)
+    rgb = a[..., :3] + (1 - a[..., 3:4]) * 0.06  # premultiplied colour over a dark background
+    Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8)).resize((128, 128), Image.NEAREST).save(folder / f"step_{step:05d}.png")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--target", default="heart", choices=sorted(TARGETS))
+    ap.add_argument("--target", default="heart", help=f"one of {sorted(TARGETS)}, or a path to an RGBA image")
     ap.add_argument("--size", type=int, default=64)
     ap.add_argument("--pad", type=int, default=12)
     ap.add_argument("--steps", type=int, default=4000)
@@ -39,6 +57,8 @@ def main() -> None:
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--out", default="training/runs/heart")
     ap.add_argument("--resume", action="store_true", help="continue from <out>/checkpoint.pt")
+    ap.add_argument("--snapshot-every", type=int, default=0,
+                    help="every N steps, grow from a seed with the current weights and save a picture (training timeline)")
     args = ap.parse_args()
 
     if args.threads:
@@ -51,7 +71,7 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    target = torch.from_numpy(TARGETS[args.target](args.size, args.pad))
+    target = torch.from_numpy(load_target(args.target, args.size, args.pad))
     model = NCA()
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     pool = seed_state(args.pool, args.size)
@@ -110,6 +130,8 @@ def main() -> None:
             log.write(json.dumps(rec) + "\n")
             log.flush()
             print(json.dumps(rec), flush=True)
+        if args.snapshot_every and (step % args.snapshot_every == 0 or step == args.steps - 1):
+            snapshot(model, args.size, step, out / "snapshots")
         if step % 250 == 0 or step == args.steps - 1:
             tmp = out / "checkpoint.tmp"
             torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "step": step, "config": config}, tmp)

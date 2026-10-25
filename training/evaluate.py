@@ -25,7 +25,7 @@ import torch
 from PIL import Image
 
 from nca import NCA, hash_fire_mask, iou, seed_state, to_rgba
-from targets import TARGETS
+from targets import TARGETS, from_image
 
 
 def rgba_image(x: torch.Tensor) -> Image.Image:
@@ -57,7 +57,8 @@ def main() -> None:
     model = NCA()
     model.load_state_dict(ckpt["model"])
     model.eval()
-    target = torch.from_numpy(TARGETS[cfg["target"]](cfg["size"], cfg["pad"]))
+    t = cfg["target"]
+    target = torch.from_numpy(TARGETS[t](cfg["size"], cfg["pad"]) if t in TARGETS else from_image(t, cfg["size"], cfg["pad"]))
     size, seed = cfg["size"], 7
 
     with torch.no_grad():
