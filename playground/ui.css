@@ -65,3 +65,19 @@ button.go { background: #22c55e; color: #fff; }
 button.danger { background: #ef4444; color: #fff; }
 
 .note { margin: 0.4rem 0 0; font-size: 0.75rem; color: #4b5563; }
+
+#nca {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  cursor: crosshair;
+  touch-action: none;
+}
+select { font: inherit; width: 100%; padding: 0.2rem; }
+#panel a { color: #2563eb; }
+@media (min-width: 800px) {
+  /* keep the grid clear of the control panel */
+  #nca { left: 20rem; width: calc(100vw - 20rem); }
+}

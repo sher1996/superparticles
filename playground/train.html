@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Train Smart Particles</title>
+  <link rel="stylesheet" href="ui.css" />
+  <!-- The full TF.js bundle includes gradients plus the WebGL and CPU backends.
+       It is mapped as tfjs-core so the WebGPU backend registers into the same instance. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@tensorflow/tfjs-core": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.fesm.min.js",
+      "@tensorflow/tfjs-backend-webgpu": "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.fesm.min.js"
+    }
+  }
+  </script>
+  <style>
+    body { overflow: auto; }
+    #train-view { position: fixed; inset: 0; display: grid; place-items: center; }
+    @media (min-width: 800px) { #train-view { left: 20rem; } }
+    .previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; width: min(90vw, 640px); }
+    @media (min-width: 800px) { .previews { width: min(calc(100vw - 24rem), 640px); } }
+    .previews figure { margin: 0; text-align: center; color: #9ca3af; font: 12px system-ui, sans-serif; }
+    .previews canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: #111; border-radius: 6px; }
+    #loss { width: 100%; height: 80px; background: rgba(0, 0, 0, 0.06); border-radius: 4px; }
+    input[type="file"] { font-size: 0.75rem; max-width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="train-view">
+    <div class="previews">
+      <figure><canvas id="target-view" width="48" height="48"></canvas><figcaption>Target</figcaption></figure>
+      <figure><canvas id="sample-view" width="48" height="48"></canvas><figcaption>What the cells grow (training sample)</figcaption></figure>
+    </div>
+  </div>
+
+  <aside id="panel">
+    <section>
+      <h3>Train Smart Particles</h3>
+      <p class="note">Teach the cells your own shape, right here in the browser. Pick a small icon or emoji-style image, ideally with a transparent background. Training runs on your GPU (WebGPU or WebGL), and nothing is uploaded.</p>
+    </section>
+
+    <section>
+      <input id="file" type="file" accept="image/*" aria-label="Image to grow" />
+      <label class="check" style="margin-top:0.4rem"><input id="nobg" type="checkbox" /> <span>Remove plain background</span></label>
+    </section>
+
+    <section>
+      <label class="slider-label" for="detail"><span>Detail</span></label>
+      <select id="detail" aria-label="Grid detail">
+        <option value="32">Fast: 32×32 cells</option>
+        <option value="48" selected>Detailed: 48×48 cells</option>
+      </select>
+    </section>
+
+    <section>
+      <label class="slider-label" for="steps"><span>Training steps</span><span id="steps-value">1500</span></label>
+      <input id="steps" type="range" min="200" max="4000" step="100" value="1500" />
+      <p class="note">More steps means better shapes and healing. Speed depends on your GPU; once training starts, the status line shows the time left.</p>
+    </section>
+
+    <section>
+      <div class="row">
+        <button id="start" class="go" disabled>Start training</button>
+        <button id="stop" disabled>Stop</button>
+      </div>
+      <p id="status" class="note">Loading TensorFlow.js…</p>
+      <canvas id="loss" width="560" height="160" aria-label="Loss over time"></canvas>
+    </section>
+
+    <section class="divider">
+      <div class="row">
+        <button id="open" disabled>Open in Smart Particles</button>
+        <button id="download" disabled>Download model</button>
+      </div>
+      <p class="note"><a href="./smart.html">← Smart Particles</a></p>
+    </section>
+  </aside>
+
+  <script type="module" src="./train.js"></script>
+</body>
+</html>

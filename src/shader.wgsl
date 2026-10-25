@@ -8,6 +8,7 @@ struct Uniforms {
   dpr: f32,         // device pixel ratio
   size: f32,        // particle size in canvas pixels
   color: vec4<f32>, // RGBA color
+  view: vec4<f32>,  // world -> pixels: scale xy, offset zw
 };
 
 @group(0) @binding(0) var<storage, read> positions: array<vec2<f32>>;
@@ -25,7 +26,7 @@ fn vs(@builtin(vertex_index) v: u32, @builtin(instance_index) i: u32) -> VSOut {
     vec2(-1.0, 1.0), vec2(1.0, -1.0), vec2(1.0, 1.0),
   );
   let corner = corners[v];
-  let p = positions[i] + corner * uniforms.size * 0.5;
+  let p = positions[i] * uniforms.view.xy + uniforms.view.zw + corner * uniforms.size * 0.5;
   var out: VSOut;
   out.position = vec4<f32>(p.x / uniforms.w * 2.0 - 1.0, 1.0 - p.y / uniforms.h * 2.0, 0.0, 1.0);
   out.local = corner;

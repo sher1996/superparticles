@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SuperParticles Benchmark</title>
+  <style>
+    :root { color-scheme: light dark; --bg: #fff; --fg: #111827; --muted: #6b7280; --line: #e5e7eb; --accent: #2563eb; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #0b0f17; --fg: #e5e7eb; --muted: #9ca3af; --line: #1f2937; --accent: #60a5fa; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+    p { color: var(--muted); margin: 0.25rem 0 1rem; }
+    button { font: inherit; padding: 0.45rem 1rem; border-radius: 6px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0 2rem; font-variant-numeric: tabular-nums; }
+    th, td { text-align: right; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--line); }
+    th:first-child, td:first-child { text-align: left; }
+    th { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+    #stage { position: fixed; right: 1rem; bottom: 1rem; width: 320px; height: 200px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: #000; }
+    #stage canvas { width: 100%; height: 100%; display: block; }
+    pre { white-space: pre-wrap; font-size: 0.8rem; background: var(--line); padding: 0.75rem; border-radius: 6px; max-height: 20rem; overflow: auto; }
+    .row { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    #status { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>SuperParticles benchmark</h1>
+    <p>Measures this device: frame rate and physics cost per particle count and renderer, and Smart Particles update speed per backend. Results include the browser, GPU and screen details, so numbers from different machines can be compared fairly. Close other tabs and keep this tab visible while it runs (about 1–2 minutes).</p>
+    <div class="row">
+      <button id="run">Run benchmark</button>
+      <button id="copy" disabled>Copy JSON</button>
+      <span id="status"></span>
+    </div>
+
+    <h2>Particles</h2>
+    <table id="particles"><thead><tr>
+      <th>Renderer</th><th>Particles</th><th>Median FPS</th><th>p95 frame (ms)</th><th>Physics (ms/step)</th>
+    </tr></thead><tbody></tbody></table>
+
+    <h2>Smart Particles (64×64 NCA)</h2>
+    <table id="nca"><thead><tr>
+      <th>Backend</th><th>Steps / second</th><th>ms / step</th>
+    </tr></thead><tbody></tbody></table>
+
+    <h2>Raw results</h2>
+    <pre id="json">Not run yet.</pre>
+  </main>
+  <div id="stage"></div>
+
+  <script type="module">
+    import { createEngine } from "../dist/index.js";
+    import { createSmartParticles } from "../dist/nca.js";
+
+    const $ = (s) => document.querySelector(s);
+    const COUNTS = [1000, 5000, 20000, 50000, 100000];
+    const RENDERERS = [
+      { id: "canvas2d", opts: {} },
+      { id: "webgl2", opts: { useWebGL: true } },
+      { id: "webgpu", opts: { useWebGPU: true } },
+    ];
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pct = (xs, p) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+
+    function freshCanvas() {
+      const c = document.createElement("canvas");
+      $("#stage").replaceChildren(c);
+      return c;
+    }
+
+    // Frame intervals from requestAnimationFrame over `ms`
+    function frameTimes(ms) {
+      return new Promise((resolve) => {
+        const times = [];
+        let last = performance.now();
+        const end = last + ms;
+        const tick = (t) => {
+          times.push(t - last);
+          last = t;
+          if (t < end) requestAnimationFrame(tick); else resolve(times);
+        };
+        requestAnimationFrame(tick);
+      });
+    }
+
+    async function environment() {
+      let gpu = null;
+      try {
+        const a = await navigator.gpu?.requestAdapter();
+        if (a) gpu = { vendor: a.info?.vendor, architecture: a.info?.architecture, description: a.info?.description };
+      } catch {}
+      const gl = document.createElement("canvas").getContext("webgl2");
+      const dbg = gl?.getExtension("WEBGL_debug_renderer_info");
+      return {
+        date: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        devicePixelRatio: devicePixelRatio,
+        stage: { cssWidth: 320, cssHeight: 200 },
+        cores: navigator.hardwareConcurrency,
+        webgpu: gpu,
+        webgl: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl ? "available" : null,
+      };
+    }
+
+    async function benchParticles(out) {
+      const body = $("#particles tbody");
+      for (const r of RENDERERS) {
+        for (const count of COUNTS) {
+          $("#status").textContent = `Particles: ${r.id}, ${count.toLocaleString()}…`;
+          const engine = await createEngine(freshCanvas(), { ...r.opts, particleCount: count, deterministic: true, reducedMotion: "ignore", autoplay: false });
+          if (engine.renderer !== r.id) {
+            out.push({ renderer: r.id, particles: count, skipped: `unavailable (fell back to ${engine.renderer})` });
+            engine.stop();
+            body.insertAdjacentHTML("beforeend", `<tr><td>${r.id}</td><td>${count.toLocaleString()}</td><td colspan="3">unavailable</td></tr>`);
+            break;
+          }
+          // Physics cost, measured directly
+          engine.step(10);
+          const t0 = performance.now();
+          engine.step(60);
+          const physics = (performance.now() - t0) / 60;
+          // Frame rate with the loop running
+          engine.resume();
+          await sleep(500);
+          const ft = await frameTimes(2000);
+          engine.stop();
+          const fps = 1000 / pct(ft, 0.5);
+          const row = { renderer: r.id, particles: count, medianFps: +fps.toFixed(1), p95FrameMs: +pct(ft, 0.95).toFixed(2), physicsMsPerStep: +physics.toFixed(3) };
+          out.push(row);
+          body.insertAdjacentHTML("beforeend", `<tr><td>${r.id}</td><td>${count.toLocaleString()}</td><td>${row.medianFps}</td><td>${row.p95FrameMs}</td><td>${row.physicsMsPerStep}</td></tr>`);
+        }
+      }
+    }
+
+    async function benchNCA(out) {
+      const body = $("#nca tbody");
+      for (const backend of ["webgpu", "webgl2", "cpu"]) {
+        $("#status").textContent = `Smart Particles: ${backend}…`;
+        let sp;
+        try {
+          sp = await createSmartParticles(freshCanvas(), { model: "../models/heart.nca.json", backend, autoplay: false, interactive: false, reducedMotion: "ignore" });
+        } catch (e) {
+          out.push({ backend, skipped: String(e) });
+          continue;
+        }
+        if (sp.backend !== backend) {
+          out.push({ backend, skipped: `unavailable (fell back to ${sp.backend})` });
+          body.insertAdjacentHTML("beforeend", `<tr><td>${backend}</td><td colspan="2">unavailable</td></tr>`);
+          sp.stop();
+          continue;
+        }
+        sp.advance(150); // grow the shape first so the cost reflects a full pattern
+        await sp.readState(); // flush queued GPU work
+        const n = backend === "cpu" ? 20 : 200;
+        const t0 = performance.now();
+        sp.advance(n);
+        await sp.readState(); // wait for the GPU to finish
+        const ms = (performance.now() - t0) / n;
+        sp.stop();
+        const row = { backend, grid: "64x64", stepsPerSecond: +(1000 / ms).toFixed(1), msPerStep: +ms.toFixed(3) };
+        out.push(row);
+        body.insertAdjacentHTML("beforeend", `<tr><td>${backend}</td><td>${row.stepsPerSecond}</td><td>${row.msPerStep}</td></tr>`);
+      }
+    }
+
+    let results = null;
+    $("#run").onclick = async () => {
+      $("#run").disabled = true;
+      $("#copy").disabled = true;
+      $("#particles tbody").replaceChildren();
+      $("#nca tbody").replaceChildren();
+      results = { environment: await environment(), particles: [], nca: [] };
+      await benchParticles(results.particles);
+      await benchNCA(results.nca);
+      $("#json").textContent = JSON.stringify(results, null, 2);
+      $("#status").textContent = "Done.";
+      $("#run").disabled = false;
+      $("#copy").disabled = false;
+      window.benchResults = results;
+    };
+    $("#copy").onclick = () => navigator.clipboard.writeText(JSON.stringify(results, null, 2));
+    if (new URLSearchParams(location.search).has("auto")) $("#run").click();
+  </script>
+</body>
+</html>
