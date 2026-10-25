@@ -184,7 +184,14 @@ export function createTrainer(tf, target, opts = {}) {
     return tf.tensor4d(m, [n, size, size, 1]);
   }
 
-  async function trainStep() {
+  /**
+   * One training step. With { inspect: true } it also returns `inputs`: the batch
+   * as it went in (after reseeding/damage), for teaching views. Caller disposes
+   * `preview` (and `inputs`). `roles[i]` says what sample i was: 'seed' (fresh
+   * single cell), 'pool' (a previous result, so the model learns to keep the shape)
+   * or 'damaged' (a previous result with a hole cut, so it learns to heal).
+   */
+  async function trainStep({ inspect = false } = {}) {
     optimizer.learningRate = lr(stepNo);
     // sample a batch from the pool, worst first
     const idx = Array.from({ length: batch }, () => Math.floor(rng() * poolSize));
@@ -207,6 +214,10 @@ export function createTrainer(tf, target, opts = {}) {
     });
     x.dispose();
     idxT.dispose();
+    const damaging = damageCount > 0 && stepNo > 100;
+    const roles = Array.from({ length: batch }, (_, i) =>
+      i === 0 ? 'seed' : damaging && i >= batch - damageCount ? 'damaged' : 'pool');
+    const inputs = inspect ? tf.keep(tf.clone(ordered)) : null;
 
     const n = rollout[0] + Math.floor(rng() * (rollout[1] - rollout[0] + 1));
     let final = null;
@@ -242,7 +253,31 @@ export function createTrainer(tf, target, opts = {}) {
     value.dispose();
     const preview = final;
     stepNo++;
-    return { step: stepNo, loss, iters: n, preview }; // caller disposes preview
+    return { step: stepNo, loss, iters: n, preview, inputs, roles, lr: lr(stepNo - 1) }; // caller disposes preview (+ inputs)
+  }
+
+  /**
+   * Grow from a single seed with the current weights (no learning), returning
+   * the visible RGBA (premultiplied, [S*S*4]) at each requested step count.
+   */
+  async function grow(stepsList) {
+    const want = [...stepsList].sort((a, b) => a - b);
+    const out = [];
+    let s = seedBatch(tf, 1, size);
+    let done = 0;
+    for (const k of want) {
+      while (done < k) {
+        const next = nca.step(s);
+        s.dispose();
+        s = next;
+        done++;
+      }
+      const vis = tf.slice(s, [0, 0, 0, 0], [1, -1, -1, 4]);
+      out.push({ step: k, rgba: await vis.data() });
+      vis.dispose();
+    }
+    s.dispose();
+    return out;
   }
 
   async function toModelFile(name) {
@@ -252,7 +287,11 @@ export function createTrainer(tf, target, opts = {}) {
 
   return {
     trainStep,
+    grow,
     toModelFile,
+    size,
+    batch,
+    get learningRate() { return lr(stepNo); },
     get step() { return stepNo; },
     dispose() { nca.dispose(); tgt.dispose(); pool.dispose(); optimizer.dispose(); },
   };

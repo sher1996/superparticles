@@ -42,3 +42,12 @@ def ring(size: int = 64, pad: int = 12) -> np.ndarray:
 
 
 TARGETS = {"heart": heart, "ring": ring}
+
+
+def from_image(path: str, size: int = 64, pad: int = 12) -> np.ndarray:
+    """Any RGBA image (e.g. a drawing saved from playground/train.html) as a target."""
+    img = Image.open(path).convert("RGBA")
+    img.thumbnail((512, 512))
+    square = Image.new("RGBA", (max(img.size),) * 2, (0, 0, 0, 0))
+    square.paste(img, ((square.width - img.width) // 2, (square.height - img.height) // 2))
+    return _finish(square, size, pad)
