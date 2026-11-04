@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trend History</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top" id="header"></header>
+<main>
+  <div id="detail"></div>
+  <div class="toolbar">
+    <input type="text" id="q" placeholder="Search keywords…" aria-label="Search keywords">
+    <div class="tabs" id="only">
+      <button data-o="" class="active">All keywords</button>
+      <button data-o="rising">Rising now</button>
+      <button data-o="opportunities">Became an opportunity</button>
+    </div>
+  </div>
+  <div class="list-wrap"><table class="list">
+    <thead><tr><th>Keyword</th><th>Source</th><th>Last 26 weeks</th><th class="n">Searches/wk</th><th class="n">4 wk</th>
+      <th class="n">vs last year</th><th>Status</th><th class="n">Best score</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+</main>
+<script src="/static/common.js"></script>
+<script>
+const st = { q: "", only: "" };
+
+async function loadList() {
+  const data = await api("/api/history/keywords?" + new URLSearchParams(st));
+  $("#rows").innerHTML = data.items.map((k) => `<tr class="click" data-id="${k.id}">
+    <td><b>${esc(k.term)}</b></td>
+    <td>${esc(k.source === "aliexpress" ? "AliExpress hot" : k.source === "bol_related" ? "bol related" : k.source)}</td>
+    <td>${sparkline(k.spark)}</td>
+    <td class="n">${int(k.last_volume)}</td><td class="n">${pct(k.growth_4w)}</td><td class="n">${pct(k.yoy)}</td>
+    <td>${k.is_rising ? '<span class="chip good">rising</span>' : k.status === "dormant" ? '<span class="chip">parked</span>' : `<span class="chip" title="${esc((k.reasons || []).join("; "))}">flat</span>`}</td>
+    <td class="n">${k.best_score ? Math.round(k.best_score) : "–"}</td></tr>`).join("") ||
+    `<tr><td colspan="8" class="empty">No keywords yet – run the engine first.</td></tr>`;
+}
+
+async function showDetail(id) {
+  const d = await api(`/api/history/keyword/${id}`);
+  const k = d.keyword, s = k.signal || {};
+  const products = d.products.map((p, i) => `<div class="panel">
+      <h2 style="font-size:14px">${esc(p.title || p.ean)} <span style="color:var(--muted);font-weight:400">EAN ${esc(p.ean)}</span></h2>
+      <div class="two">
+        <div><div style="font-size:12px;color:var(--muted)">Impressions per day (our stored history)</div><div id="pi${i}"></div></div>
+        <div><div style="font-size:12px;color:var(--muted)">Number of sellers</div><div id="po${i}"></div></div>
+      </div></div>`).join("");
+  $("#detail").innerHTML = `<div class="panel">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <h2>${esc(k.term)}</h2><button id="close">Close</button></div>
+      <p style="color:var(--text-2);margin:0 0 8px">${s.is_rising ? "Rising now." : "Not rising: " + esc((s.reasons || []).join("; "))}
+        · source: ${esc(k.source)}${k.source_detail ? " (" + esc(k.source_detail) + ")" : ""}${k.english ? " · AliExpress search: “" + esc(k.english) + "”" : ""}</p>
+      <div class="two">
+        <div><div style="font-size:12px;color:var(--muted)">Full search history (weekly)</div><div id="full"></div></div>
+        <div><div style="font-size:12px;color:var(--muted)">Last 52 weeks vs last year</div><div id="ov"></div></div>
+      </div>
+      <div style="margin-top:12px"><div style="font-size:12px;color:var(--muted)">Opportunity score per day</div><div id="sc"></div></div>
+    </div>${products}`;
+  lineChart($("#full"), d.series.labels, [{ name: "Searches", values: d.series.values, cls: "s1" }], { label: "Search history" });
+  lineChart($("#ov"), d.overlay.labels, [
+    { name: "Last 52 weeks", values: d.overlay.this_year, cls: "s1" },
+    { name: "Same weeks last year", values: d.overlay.last_year, cls: "sref" }], { label: "This year vs last year" });
+  lineChart($("#sc"), d.scores.map((x) => x.run_date), [{ name: "Score", values: d.scores.map((x) => x.score), cls: "s1" }], { height: 120, label: "Score per day" });
+  d.products.forEach((p, i) => {
+    lineChart($(`#pi${i}`), p.ranks.map((r) => r.date), [{ name: "Impressions", values: p.ranks.map((r) => r.impressions), cls: "s1" }], { height: 110 });
+    lineChart($(`#po${i}`), p.snapshots.map((r) => r.date), [{ name: "Sellers", values: p.snapshots.map((r) => r.offers_count), cls: "s1" }], { height: 110 });
+  });
+  $("#close").onclick = () => { $("#detail").innerHTML = ""; history.replaceState(null, "", "/history"); };
+  history.replaceState(null, "", "/history#" + id);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+$("#rows").addEventListener("click", (ev) => { const tr = ev.target.closest("tr[data-id]"); if (tr) showDetail(tr.dataset.id); });
+let t;
+$("#q").addEventListener("input", (ev) => { clearTimeout(t); t = setTimeout(() => { st.q = ev.target.value; loadList(); }, 250); });
+$("#only").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button"); if (!b) return;
+  document.querySelectorAll("#only button").forEach((x) => x.classList.toggle("active", x === b));
+  st.only = b.dataset.o; loadList();
+});
+window.onRunFinished = loadList;
+renderHeader("history").then(loadList).then(() => { const id = location.hash.slice(1); if (id) showDetail(id); });
+</script>
+</body>
+</html>

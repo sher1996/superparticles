@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engine Settings</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="top" id="header"></header>
+<main>
+  <div class="panel">
+    <h2>Accounts &amp; connections</h2>
+    <div id="creds"></div>
+    <p style="font-size:13px;color:var(--text-2)">Keys live only in the <code>.env</code> file (never shown here). After editing <code>.env</code>, restart the app.</p>
+    <button id="check">Test connections</button>
+    <div id="checks" style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel">
+    <h2>What the engine learned from your decisions</h2>
+    <div id="learning"></div>
+  </div>
+
+  <div class="panel" id="runs">
+    <h2>Runs &amp; logs</h2>
+    <div class="list-wrap"><table class="list"><thead><tr><th>#</th><th>Started</th><th>Trigger</th><th>Status</th><th>Result</th></tr></thead>
+      <tbody id="runrows"></tbody></table></div>
+    <pre class="log" id="log" style="display:none"></pre>
+  </div>
+
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <h2>Rates, thresholds &amp; weights</h2>
+      <span><span id="saved" style="font-size:13px"></span> <button class="primary" id="save">Save settings</button></span>
+    </div>
+    <p style="font-size:13px;color:var(--text-2)">Defaults are starting points, not official tariffs. Check bol's current tariffs in your seller dashboard. Changes apply from the next run.</p>
+    <div id="form"></div>
+  </div>
+</main>
+<script src="/static/common.js"></script>
+<script>
+let schema = [];
+const yes = (b) => (b ? '<span class="ok">✔ set</span>' : '<span class="err">✘ not set</span>');
+
+async function loadAll() {
+  const s = _status || (await api("/api/status"));
+  $("#creds").innerHTML = `<dl class="kv" style="max-width:560px">
+    <dt>Mode</dt><dd><b>${s.mode.toUpperCase()}</b></dd>
+    <dt>Simulated sources</dt><dd>${s.simulated_sources.length ? s.simulated_sources.map(esc).join(", ") : "none"}</dd>
+    <dt>.env file</dt><dd>${s.env_file_found ? '<span class="ok">found</span>' : (s.mode === "demo" ? 'not found (fine for demo; copy .env.example to .env for live)' : '<span class="err">not found – copy .env.example to .env</span>')}</dd>
+    <dt>bol seller (Retailer API)</dt><dd>${yes(s.credentials.bol_seller)}</dd>
+    <dt>bol affiliate (Marketing Catalog API)</dt><dd>${yes(s.credentials.bol_affiliate)}</dd>
+    <dt>AliExpress affiliate</dt><dd>${yes(s.credentials.aliexpress)}</dd>
+    <dt>Anthropic (AI, optional)</dt><dd>${yes(s.credentials.anthropic)} ${s.credentials.anthropic ? esc(s.ai_model) : "– rule-based fallback"}</dd>
+    <dt>AI cost today</dt><dd>$${Number(s.ai_today.cost_usd || 0).toFixed(4)} of $${Number(s.ai_cap).toFixed(2)} (${s.ai_today.calls || 0} calls)</dd>
+    <dt>Daily run</dt><dd>${esc(s.schedule)}</dd>
+    <dt>Keywords / tracked products</dt><dd>${int(s.keywords)} / ${int(s.tracked_products)}</dd></dl>`;
+
+  const st = await api("/api/settings");
+  schema = st.schema;
+  const groups = [...new Set(schema.map((x) => x.group))];
+  $("#form").innerHTML = groups.map((g) => `<div class="set-group"><h3 style="margin:8px 0">${esc(g)}</h3>${schema.filter((x) => x.group === g).map(field).join("")}</div>`).join("");
+
+  const L = st.learning;
+  const names = { demand: "Demand growth", earliness: "Earliness", competition: "Competition", profit: "Profit", match: "Match" };
+  $("#learning").innerHTML = L.decisions === 0
+    ? "<p>No decisions yet. Approve or reject opportunities (with a reason if you like) and the ranking adapts after 3 decisions.</p>"
+    : `<p>${L.decisions} decisions. ${L.active ? "Learning is active." : "Learning starts after 3 decisions."}</p>
+       <dl class="kv" style="max-width:420px">${Object.entries(L.multipliers).map(([k, v]) => `<dt>${names[k]} weight</dt><dd>${v === 1 ? "unchanged" : "×" + v}</dd>`).join("")}</dl>
+       ${L.preferences.length ? `<p style="margin-top:10px"><b>Strongest preferences</b></p><ul>${L.preferences.map((p) => `<li>${esc(p.feature)}: ${p.approved} approved, ${p.rejected} rejected</li>`).join("")}</ul>` : ""}`;
+  loadRuns();
+}
+
+function field(x) {
+  const id = "f_" + x.key;
+  let input;
+  if (x.type === "bool") input = `<select id="${id}"><option value="true" ${x.value ? "selected" : ""}>Yes</option><option value="false" ${!x.value ? "selected" : ""}>No</option></select>`;
+  else if (x.type === "choice") input = `<select id="${id}">${x.choices.map((c) => `<option ${c === x.value ? "selected" : ""}>${esc(c)}</option>`).join("")}</select>`;
+  else if (x.type === "json") input = `<input type="text" id="${id}" value='${esc(JSON.stringify(x.value))}'>`;
+  else if (x.type === "text" || x.type === "str") input = `<input type="text" id="${id}" value="${esc(x.value)}">`;
+  else input = `<input type="number" step="any" id="${id}" value="${esc(x.value)}">`;
+  return `<div class="set-row"><div><label for="${id}"><b>${esc(x.label)}</b></label>${x.help ? `<div class="help">${esc(x.help)}</div>` : ""}
+    <div class="help">default: ${esc(typeof x.default === "object" ? JSON.stringify(x.default) : String(x.default))}</div></div><div>${input}</div></div>`;
+}
+
+$("#save").onclick = async () => {
+  const changes = {};
+  for (const x of schema) {
+    const v = $("#f_" + x.key).value;
+    changes[x.key] = x.type === "bool" ? v === "true" : v;
+  }
+  try {
+    await api("/api/settings", { method: "PUT", body: JSON.stringify(changes) });
+    $("#saved").innerHTML = '<span class="ok">Saved.</span>';
+  } catch (e) { $("#saved").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+};
+
+$("#check").onclick = async () => {
+  $("#checks").textContent = "Testing…";
+  const r = await api("/api/check-connections", { method: "POST" });
+  $("#checks").innerHTML = `<table class="list"><thead><tr><th>API</th><th>Mode</th><th>Result</th></tr></thead><tbody>${r.items.map((c) => `<tr><td>${esc(c.api)}</td><td>${esc(c.mode)}</td><td class="${c.ok ? "ok" : "err"}">${esc(c.message)}</td></tr>`).join("")}</tbody></table>`;
+};
+
+async function loadRuns() {
+  const r = await api("/api/runs");
+  $("#runrows").innerHTML = r.items.map((x) => {
+    const s = x.summary || {};
+    const res = x.status === "running" ? "…" : `${s.opportunities ?? 0} opportunities, ${s.rising ?? 0} rising of ${s.keywords_checked ?? 0} checked${(s.errors || []).length ? ` · <span class="err">${s.errors.length} error(s)</span>` : ""}`;
+    return `<tr class="click" data-id="${x.id}"><td>${x.id}</td><td>${esc((x.started_at || "").replace("T", " "))}</td><td>${esc(x.trigger)}</td>
+      <td class="${x.status === "ok" ? "ok" : x.status === "running" ? "" : "err"}">${esc(x.status)}</td><td>${res}</td></tr>`;
+  }).join("") || '<tr><td colspan="5">No runs yet.</td></tr>';
+}
+$("#runrows").addEventListener("click", async (ev) => {
+  const tr = ev.target.closest("tr[data-id]"); if (!tr) return;
+  const r = await api(`/api/runs/${tr.dataset.id}/log`);
+  const el = $("#log");
+  el.style.display = "";
+  el.textContent = r.items.map((l) => `${l.ts.slice(11)} ${l.level.toUpperCase().padEnd(7)} [${l.step}] ${l.message}`).join("\n");
+});
+window.onRunFinished = loadAll;
+renderHeader("settings").then(loadAll);
+</script>
+</body>
+</html>
