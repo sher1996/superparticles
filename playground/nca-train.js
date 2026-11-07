@@ -157,6 +157,8 @@ export function createTrainer(tf, target, opts = {}) {
   const damageCount = opts.damage ?? 1;
   const baseLr = opts.lr ?? 2e-3;
   const total = opts.steps ?? 2000;
+  const warmup = opts.warmup ?? 50;
+  const damageFrom = opts.damageFrom ?? 100;
 
   const nca = createNCA(tf, undefined, rng);
   const optimizer = tf.train.adam(baseLr);
@@ -165,8 +167,8 @@ export function createTrainer(tf, target, opts = {}) {
   let stepNo = 0;
 
   const lr = (s) => {
-    if (s < 50) return baseLr * (s + 1) / 50;
-    const t = (s - 50) / Math.max(1, total - 50);
+    if (s < warmup) return baseLr * (s + 1) / warmup;
+    const t = (s - warmup) / Math.max(1, total - warmup);
     return baseLr * (0.1 + 0.9 * 0.5 * (1 + Math.cos(Math.PI * t)));
   };
 
@@ -205,7 +207,7 @@ export function createTrainer(tf, target, opts = {}) {
       // worst sample -> seed, best samples -> damaged
       const seed = seedBatch(tf, 1, size);
       y = tf.concat([seed, tf.slice(y, [1, 0, 0, 0], [-1, -1, -1, -1])], 0);
-      if (damageCount > 0 && stepNo > 100) {
+      if (damageCount > 0 && stepNo > damageFrom) {
         const keep = tf.slice(y, [0, 0, 0, 0], [batch - damageCount, -1, -1, -1]);
         const hurt = tf.mul(tf.slice(y, [batch - damageCount, 0, 0, 0], [-1, -1, -1, -1]), damageMask(damageCount));
         y = tf.concat([keep, hurt], 0);
@@ -214,7 +216,7 @@ export function createTrainer(tf, target, opts = {}) {
     });
     x.dispose();
     idxT.dispose();
-    const damaging = damageCount > 0 && stepNo > 100;
+    const damaging = damageCount > 0 && stepNo > damageFrom;
     const roles = Array.from({ length: batch }, (_, i) =>
       i === 0 ? 'seed' : damaging && i >= batch - damageCount ? 'damaged' : 'pool');
     const inputs = inspect ? tf.keep(tf.clone(ordered)) : null;
@@ -280,6 +282,43 @@ export function createTrainer(tf, target, opts = {}) {
     return out;
   }
 
+  /**
+   * One grid that keeps running the current rule (no learning), for a live view.
+   * It shares the trained weights, so it changes as training goes on. Its fire
+   * masks don't use the trainer's rng, so a seeded run stays reproducible.
+   */
+  function live() {
+    let s = seedBatch(tf, 1, size);
+    let age = 0;
+    const swap = (next) => { s.dispose(); s = next; };
+    return {
+      get age() { return age; },
+      reset() { swap(seedBatch(tf, 1, size)); age = 0; },
+      step(n = 1) {
+        for (let i = 0; i < n; i++) {
+          const fire = tf.tidy(() => tf.cast(tf.lessEqual(tf.randomUniform([1, size, size, 1]), FIRE_RATE), 'float32'));
+          swap(nca.step(s, fire));
+          fire.dispose();
+        }
+        age += n;
+      },
+      /** Zero a disc of radius r cells around (x, y), in grid cells. */
+      cut(x, y, r) {
+        const m = new Float32Array(size * size);
+        for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) m[j * size + i] = (i - x) ** 2 + (j - y) ** 2 < r * r ? 0 : 1;
+        swap(tf.tidy(() => tf.mul(s, tf.tensor4d(m, [1, size, size, 1]))));
+      },
+      /** Visible RGBA (premultiplied, [S*S*4]). */
+      async read() {
+        const v = tf.slice(s, [0, 0, 0, 0], [1, -1, -1, 4]);
+        const d = await v.data();
+        v.dispose();
+        return d;
+      },
+      dispose() { s.dispose(); },
+    };
+  }
+
   async function toModelFile(name) {
     const w = await nca.exportWeights();
     return modelFile(name, w, size);
@@ -288,9 +327,12 @@ export function createTrainer(tf, target, opts = {}) {
   return {
     trainStep,
     grow,
+    live,
     toModelFile,
     size,
     batch,
+    pool: poolSize,
+    damageFrom: damageCount > 0 ? damageFrom : Infinity,
     get learningRate() { return lr(stepNo); },
     get step() { return stepNo; },
     dispose() { nca.dispose(); tgt.dispose(); pool.dispose(); optimizer.dispose(); },

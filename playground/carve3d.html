@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Carve a 3D shape from views</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    .slot { display: grid; grid-template-columns: 2.6rem 1fr auto; gap: 0.4rem; align-items: center; font-size: 0.78rem; padding: 0.3rem 0; }
+    .slot + .slot { border-top: 1px solid var(--line); }
+    .slot b { font-weight: 600; }
+    .slot > span:nth-child(2) { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .slot .row { flex-wrap: nowrap; }
+    .slot button { padding: 0.35rem 0.6rem; }
+    #cams { padding: 0; }
+    #cams .panel-inner { overflow-y: auto; padding: 0.9rem 1rem 1rem; }
+    .cam { padding: 0.7rem 0 0; }
+    .cam + .cam { margin-top: 0.7rem; border-top: 1px solid var(--line); }
+    .cam-head { display: flex; justify-content: space-between; font-weight: 600; font-size: 0.8rem; }
+    .cam-head b { font: 600 0.76rem var(--mono); color: var(--accent); }
+    .cam-pics { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; margin-top: 0.4rem; }
+    .cam-pics canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: #000; border: 1px solid var(--line); border-radius: 8px; object-fit: contain; display: block; }
+    .cam-pics small { display: block; color: var(--muted); text-align: center; font-size: 0.68rem; margin-top: 0.15rem; }
+    .cam-off { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    .legend span { display: inline-block; width: 0.65rem; height: 0.65rem; border-radius: 3px; margin: 0 0.25rem 0 0.55rem; vertical-align: -1px; }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-label="3D shape of particles carved from the views: drag to turn it"></canvas>
+  <aside id="panel">
+    <section>
+      <p class="note" style="margin-top:0">The swarm is <strong>never given the 3D shape</strong>, only 2 or 3 flat pictures: front, side and top. Cameras carve it like a sculptor walking round the block.</p>
+      <details class="about">
+        <summary>How it works</summary>
+        <p class="note">The <strong>orchestrator</strong> watches the swarm through one camera per picture: anything a camera sees outside its outline is carved back in, the rest presses out against the walls, and gaps a camera sees are filled from depths every other view agrees on.</p>
+      </details>
+    </section>
+
+    <section class="divider">
+      <h3>Views</h3>
+      <select id="set" aria-label="Built-in view set"></select>
+      <div style="margin-top:0.5rem">
+        <div class="slot"><b>Front</b><span id="src-front">–</span><button data-up="front">Upload…</button></div>
+        <div class="slot"><b>Side</b><span id="src-side">–</span><span class="row"><button data-up="side">Upload…</button><button data-clear="side" title="Remove the side view">×</button></span></div>
+        <div class="slot"><b>Top</b><span id="src-top">–</span><span class="row"><button data-up="top">Upload…</button><button data-clear="top" title="Remove the top view">×</button></span></div>
+      </div>
+      <input id="file" type="file" accept="image/*" hidden />
+      <details class="about">
+        <summary>Tips for your own pictures</summary>
+        <p class="note">Side = seen from the right (the object's front on the left of the picture). Top = seen from above (front at the bottom). A bold silhouette on a plain or transparent background works best. Views are lined up by their outlines: side height = front height, top width = front width.</p>
+      </details>
+    </section>
+
+    <section class="divider">
+      <h3>Orchestrator report</h3>
+      <ul id="report"></ul>
+    </section>
+
+    <section class="divider">
+      <h3>Break it, watch it re-form</h3>
+      <div class="row">
+        <button id="knock" class="danger">Knock a piece off</button>
+        <button id="scatter" class="danger">Scatter a patch</button>
+      </div>
+      <div class="row">
+        <button id="explode" class="danger">Explode</button>
+        <button id="reset">Start from a lump</button>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Turn to</h3>
+      <div class="seg">
+        <button data-turn="front">Front</button><button data-turn="side">Side</button><button data-turn="top">Top</button><button data-turn="free">Free</button>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Swarm</h3>
+      <label class="slider-label" for="followers"><span>Followers</span><span id="followers-value">8000</span></label>
+      <input id="followers" type="range" min="1000" max="30000" step="1000" value="8000" />
+      <label class="slider-label" for="size"><span>Size</span><span id="size-value">2</span></label>
+      <input id="size" type="range" min="1" max="8" step="0.5" value="2" />
+      <label class="slider-label" for="speed"><span>Speed</span><span id="speed-value">40</span></label>
+      <input id="speed" type="range" min="1" max="100" value="40" />
+    </section>
+
+    <section class="divider">
+      <h3>View</h3>
+      <label class="check"><span>Colour</span><input id="color" type="color" value="#70c1ff" /></label>
+      <label class="check"><span>Depth shading</span><input id="depth" type="checkbox" checked /></label>
+      <label class="check"><span>Turn slowly</span><input id="rotate" type="checkbox" checked /></label>
+      <label class="check"><span>Show the smart particles</span><input id="show-smart" type="checkbox" /></label>
+      <div class="row" style="margin-top:0.5rem"><button id="play" aria-pressed="true">Pause</button></div>
+    </section>
+  </aside>
+
+  <aside id="cams" class="side right" aria-label="What each camera sees">
+    <div class="panel-inner">
+      <h3>Cameras</h3>
+      <p class="note" style="margin:0 0 0.3rem">Left: the outline you gave. Right: what that camera sees of the swarm now.</p>
+      <div class="legend"><span style="background:#70c1ff;margin-left:0"></span>match<span style="background:#ef4444"></span>outside<span style="background:#4b5563"></span>empty</div>
+      <div id="cam-list"></div>
+    </div>
+  </aside>
+  <script type="module" src="./nav.js"></script>
+  <script type="module" src="./carve3d.js"></script>
+</body>
+</html>

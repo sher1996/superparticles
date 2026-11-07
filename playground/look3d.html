@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>3D from one picture</title>
+  <link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+  <canvas id="view" aria-label="3D form of particles worked out from a picture: drag to turn it"></canvas>
+  <aside id="panel">
+    <section>
+      <p class="note" style="margin-top:0">Nobody tells the swarm the 3D shape. An <strong>orchestrator</strong> compares a front camera with your picture, and the smart particles inflate the rest like air in a balloon. Drag to turn it.</p>
+      <details class="about">
+        <summary>How it works</summary>
+        <p class="note">The orchestrator sends particles from where there is too much to where something is missing. The <strong>700 smart particles</strong> choose their own depth: thick in the middle and thin at the edges, front and back in balance, evenly spaced.</p>
+      </details>
+    </section>
+
+    <section class="divider">
+      <h3>Picture</h3>
+      <div class="row">
+        <select id="picture" aria-label="Picture"></select>
+        <input id="image" type="file" accept="image/*" aria-label="Your own image" hidden />
+        <button id="upload">Image…</button>
+      </div>
+      <p class="note">Bold silhouettes work best: a transparent PNG, or a dark shape on a plain background.</p>
+    </section>
+
+    <section class="divider">
+      <h3>What the orchestrator sees</h3>
+      <div class="thumbs">
+        <figure><canvas id="mask-view"></canvas>picture</figure>
+        <figure><canvas id="cam-view"></canvas>camera</figure>
+        <figure><canvas id="side-view"></canvas>side</figure>
+      </div>
+      <div class="key" style="margin-top:0.4rem"><i style="background:#70c1ff"></i>match<i style="background:#ff4646"></i>too much<i style="background:#ffd23c"></i>missing</div>
+      <ul id="report" style="margin-top:0.6rem"></ul>
+    </section>
+
+    <section class="divider">
+      <h3>How well it matches</h3>
+      <div class="stat-grid">
+        <span>Front view match (IoU)</span><b id="stat-iou">–</b>
+        <span>Pixels</span><b id="stat-px">–</b>
+        <span>Depth it chose</span><b id="stat-depth">–</b>
+        <span>Thickness</span><b id="stat-round">–</b>
+        <span>Smart team</span><b id="stat-team">–</b>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Break it, watch it re-form</h3>
+      <div class="row">
+        <button id="scatter" class="danger">Scatter a patch</button>
+        <button id="explode" class="danger">Explode</button>
+      </div>
+      <div class="row">
+        <button id="squash" class="danger">Squash flat</button>
+        <button id="reset">Start from a blob</button>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Swarm</h3>
+      <label class="slider-label" for="inflate"><span>Inflate (how round)</span><span id="inflate-value">0.85</span></label>
+      <input id="inflate" type="range" min="20" max="150" step="5" value="85" />
+      <label class="slider-label" for="followers"><span>Followers</span><span id="followers-value">8000</span></label>
+      <input id="followers" type="range" min="1000" max="30000" step="1000" value="8000" />
+      <label class="slider-label" for="size"><span>Size</span><span id="size-value">2</span></label>
+      <input id="size" type="range" min="1" max="8" step="0.5" value="2" />
+      <label class="slider-label" for="speed"><span>Speed</span><span id="speed-value">40</span></label>
+      <input id="speed" type="range" min="1" max="100" value="40" />
+    </section>
+
+    <section class="divider">
+      <h3>View</h3>
+      <div class="row">
+        <button id="front">Front</button><button id="side">Side</button>
+      </div>
+      <label class="check" style="margin-top:0.4rem"><span>Colour</span><input id="color" type="color" value="#70c1ff" /></label>
+      <label class="check"><span>Depth shading</span><input id="depth" type="checkbox" checked /></label>
+      <label class="check"><span>Turn slowly</span><input id="rotate" type="checkbox" checked /></label>
+      <label class="check"><span>Show the smart particles</span><input id="show-smart" type="checkbox" /></label>
+      <div class="row" style="margin-top:0.5rem"><button id="play" aria-pressed="true">Pause</button></div>
+    </section>
+  </aside>
+  <script type="module" src="./nav.js"></script>
+  <script type="module" src="./look3d.js"></script>
+</body>
+</html>

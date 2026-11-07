@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Train the Orchestrator</title>
+  <link rel="stylesheet" href="ui.css" />
+  <style>
+    #panel canvas { width: 100%; display: block; background: #03050a; border: 1px solid var(--line); border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-label="The shape built by the brain that is being trained: drag to turn it"></canvas>
+  <div id="phase" class="hud">Press Start training</div>
+  <aside id="panel">
+    <section>
+      <p class="note" style="margin-top:0">Evolve the small neural network that tells the swarm where to go. After each generation the newest brain builds the shape on the right from a blob, then repairs a knocked-off patch.</p>
+      <details class="about">
+        <summary>How it works</summary>
+        <p class="note">The orchestrator (41 weights) sends every zone of the shape a <strong>call</strong>. 300 smart particles head for the zones that call, and followers listen to them. Each generation tries 20 slightly changed brains, keeps what builds and repairs the shape better, and repeats.</p>
+      </details>
+      <div class="row" style="margin-top:0.7rem">
+        <button id="train" class="go">Start training</button>
+        <button id="restart">Restart untrained</button>
+      </div>
+    </section>
+
+    <section class="divider">
+      <div class="stat-grid">
+        <span>Generation</span><b id="gen">0</b>
+        <span>Brain score (test scenes)</span><b id="score">–</b>
+        <span>Hand-written orchestrator</span><b id="planner">–</b>
+        <span>Shown on the right</span><b id="shown">–</b>
+        <span>Surface covered now</span><b id="cover">–</b>
+      </div>
+    </section>
+
+    <section>
+      <h3>Score per generation</h3>
+      <canvas id="chart" width="560" height="260" aria-label="Score per generation"></canvas>
+      <div class="key" style="margin-top:0.35rem"><i style="background:#60a5fa"></i>brain, test<i style="background:#334155"></i>training (mean)<i style="background:#f87171"></i>hand-written</div>
+    </section>
+
+    <section>
+      <h3>What the brain has learned</h3>
+      <canvas id="rule" width="560" height="220" aria-label="The learned rule: call strength against zone fullness"></canvas>
+      <p class="note">Call strength (up) against how full a zone is (right, 1 = exactly its share). One line per fullness of the neighbouring zones: <span style="color:#fbbf24">empty</span>, <span style="color:#a3e635">just right</span>, <span style="color:#c084fc">crowded</span>.</p>
+    </section>
+
+    <section class="divider">
+      <h3>Shape</h3>
+      <div class="row">
+        <select id="shape" aria-label="Shape"></select>
+        <input id="image" type="file" accept="image/*" aria-label="Your own image" hidden />
+        <button id="upload">Image…</button>
+      </div>
+      <p class="note">Switching keeps the brain, so you can see whether what it learned carries over.</p>
+    </section>
+
+    <section class="divider">
+      <h3>The trained brain</h3>
+      <div class="row">
+        <button id="download" disabled>Download</button>
+        <input id="brain-file" type="file" accept=".json,application/json" hidden />
+        <button id="load">Load…</button>
+        <button id="continue" hidden>Continue from saved</button>
+      </div>
+      <p class="note" id="saved">The best brain is saved in this browser as it trains.</p>
+    </section>
+
+    <section class="divider">
+      <h3>View</h3>
+      <label class="slider-label" for="followers"><span>Followers</span><span id="followers-value">6000</span></label>
+      <input id="followers" type="range" min="1000" max="30000" step="1000" value="6000" />
+      <label class="slider-label" for="size"><span>Size</span><span id="size-value">2</span></label>
+      <input id="size" type="range" min="1" max="8" step="0.5" value="2" />
+      <label class="check" style="margin-top:0.4rem"><span>Colour</span><input id="color" type="color" value="#70c1ff" /></label>
+      <label class="check"><span>Show the smart particles</span><input id="show-smart" type="checkbox" /></label>
+      <label class="check"><span>Turn slowly</span><input id="rotate" type="checkbox" checked /></label>
+    </section>
+  </aside>
+  <script type="module" src="./nav.js"></script>
+  <script type="module" src="./heart3d-train.js"></script>
+</body>
+</html>

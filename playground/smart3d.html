@@ -11,19 +11,19 @@
 
   <aside id="panel">
     <section>
-      <h3>Smart Particles 3D</h3>
-      <p class="note">A 16×16×16 voxel version (proof of concept): every voxel runs the same small network (7,776 weights), sees only its 26 neighbours, and grows a ringed planet from one seed. <strong>Drag to rotate.</strong></p>
-      <p class="note">Measured: 98% shape overlap after growing, 95% after 600 steps, and 96% after random holes (see STATUS.md).</p>
+      <p class="note" style="margin-top:0">A 16×16×16 voxel grid where every voxel runs the same small network, sees only its 26 neighbours, and grows a ringed planet from one seed. <strong>Drag to rotate.</strong></p>
+      <details class="about">
+        <summary>Measured results</summary>
+        <p class="note">7,776 weights. 98% shape overlap after growing, 95% after 600 steps, and 96% after random holes (see STATUS.md).</p>
+      </details>
     </section>
 
-    <section>
+    <section class="divider">
+      <h3>Simulation</h3>
       <div class="row">
         <button id="play" aria-pressed="true">Pause</button>
         <button id="reset">Reset to seed</button>
       </div>
-    </section>
-
-    <section>
       <div class="row">
         <button id="punch" class="danger">Punch hole</button>
         <button id="slice" class="danger">Cut away front half</button>
@@ -31,23 +31,21 @@
       <p id="recovery" class="note">Damage it to watch it heal.</p>
     </section>
 
-    <section>
-      <label class="check"><input id="spin" type="checkbox" checked /> <span>Auto-rotate</span></label>
+    <section class="divider">
+      <label class="check"><span>Auto-rotate</span><input id="spin" type="checkbox" checked /></label>
     </section>
 
-    <section>
+    <section class="divider">
+      <h3>Export</h3>
       <div class="row">
         <button id="ply" class="go">Download PLY</button>
       </div>
       <p class="note">Coloured point cloud of the current state, for Blender or MeshLab.</p>
-    </section>
-
-    <section class="divider">
-      <div id="stats" class="note">step 0</div>
-      <p class="note"><a href="./smart.html">← 2D Smart Particles</a> · <a href="./index.html">Particle playground</a></p>
+      <p id="stats" class="note">step 0</p>
     </section>
   </aside>
 
+  <script type="module" src="./nav.js"></script>
   <script type="module" src="./smart3d.js"></script>
 </body>
 </html>
