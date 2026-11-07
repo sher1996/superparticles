@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI depth → 3D swarm</title>
+  <link rel="stylesheet" href="ui.css" />
+  <!-- transformers.js runs the AI depth model. It is only fetched when you press the download
+       button (depth3d-model.js imports it on demand); the rest of the site never loads it. -->
+  <script type="importmap">
+  {
+    "imports": {
+      "@huggingface/transformers": "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/dist/transformers.min.js"
+    }
+  }
+  </script>
+  <style>
+    .thumbs.two canvas { background: #0b0f17; image-rendering: auto; }
+    #download { width: 100%; }
+    #progress { margin-top: 0.5rem; }
+  </style>
+</head>
+<body>
+  <canvas id="view" aria-label="3D relief of particles built from a picture: drag to turn it"></canvas>
+  <aside id="panel">
+    <section>
+      <p class="note" style="margin-top:0">A pretrained <strong>AI depth model</strong> guesses how near every pixel of a picture is. That becomes a 3D relief, and the swarm builds it. Drag to turn it.</p>
+      <details class="about">
+        <summary>How it works</summary>
+        <p class="note">One <strong>orchestrator</strong>, <strong>600 smart particles</strong> and thousands of <strong>followers</strong> build the relief. Without depth, the swarm builds a flat cut-out of the picture.</p>
+      </details>
+    </section>
+
+    <section class="divider">
+      <h3>1 · Picture</h3>
+      <div class="row">
+        <button id="test-pic">Test picture</button>
+        <input id="image" type="file" accept="image/*" aria-label="Your own picture" hidden />
+        <button id="upload">Your own…</button>
+      </div>
+      <div class="thumbs two" style="margin-top:0.5rem">
+        <figure><canvas id="pic" width="256" height="256"></canvas>picture + outline</figure>
+        <figure><canvas id="depthmap" width="256" height="256"></canvas><span id="depth-caption">AI depth (white = near)</span></figure>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>2 · AI depth model</h3>
+      <div id="download-box" class="callout">
+        <p id="download-text"></p>
+        <button id="download" class="go">Download the model and guess the depth</button>
+        <progress id="progress" max="1" value="0" hidden></progress>
+      </div>
+      <p id="status" class="note">No depth yet: the swarm builds a flat cut-out of the picture.</p>
+    </section>
+
+    <section class="divider">
+      <h3>3 · Making it 3D</h3>
+      <label class="slider-label" for="relief"><span>Depth</span><span id="relief-value">0.6</span></label>
+      <input id="relief" type="range" min="0.1" max="1.2" step="0.05" value="0.6" />
+      <div class="row" style="margin-top:0.5rem">
+        <select id="back" aria-label="Back side">
+          <option value="mirror">Back: mirrored front (pillow)</option>
+          <option value="flat">Back: flat (wall relief)</option>
+        </select>
+      </div>
+      <div class="row">
+        <select id="outline" aria-label="Outline">
+          <option value="auto">Outline: automatic</option>
+          <option value="colour">Outline: background colour</option>
+          <option value="depth">Outline: nearest part (AI depth)</option>
+          <option value="all">Outline: whole picture</option>
+        </select>
+      </div>
+      <p class="note" id="outline-note"></p>
+    </section>
+
+    <section class="divider">
+      <h3>Orchestrator report</h3>
+      <ul id="report"></ul>
+      <div class="stat-grid" style="margin-top:0.6rem">
+        <span>Surface covered</span><b id="stat-cover">–</b>
+        <span>Distance to surface (% of size)</span><b id="stat-err">–</b>
+        <span>Smart team</span><b id="stat-team">–</b>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Break it, watch it get fixed</h3>
+      <div class="row">
+        <button id="cut-lobe" class="danger">Knock a piece off</button>
+        <button id="scatter" class="danger">Scatter a patch</button>
+      </div>
+      <div class="row">
+        <button id="explode" class="danger">Explode</button>
+        <button id="reset">Start from a blob</button>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Swarm</h3>
+      <label class="slider-label" for="followers"><span>Followers</span><span id="followers-value">12000</span></label>
+      <input id="followers" type="range" min="1000" max="30000" step="1000" value="12000" />
+      <label class="slider-label" for="size"><span>Size</span><span id="size-value">2</span></label>
+      <input id="size" type="range" min="1" max="8" step="0.5" value="2" />
+      <label class="slider-label" for="speed"><span>Speed</span><span id="speed-value">40</span></label>
+      <input id="speed" type="range" min="1" max="100" value="40" />
+    </section>
+
+    <section class="divider">
+      <h3>View</h3>
+      <div class="row">
+        <button id="look-front">Front</button>
+        <button id="look-side">Side</button>
+      </div>
+      <label class="check" style="margin-top:0.4rem"><span>Colours from the picture</span><input id="use-colours" type="checkbox" checked /></label>
+      <label class="check"><span>Colour</span><input id="color" type="color" value="#70c1ff" /></label>
+      <label class="check"><span>Depth shading</span><input id="depth" type="checkbox" checked /></label>
+      <label class="check"><span>Turn slowly</span><input id="rotate" type="checkbox" checked /></label>
+      <label class="check"><span>Show the smart particles</span><input id="show-smart" type="checkbox" /></label>
+      <div class="row" style="margin-top:0.5rem"><button id="play" aria-pressed="true">Pause</button></div>
+    </section>
+  </aside>
+  <script type="module" src="./nav.js"></script>
+  <script type="module" src="./depth3d.js"></script>
+</body>
+</html>

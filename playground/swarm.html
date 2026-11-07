@@ -11,27 +11,31 @@
 
   <aside id="panel">
     <section>
-      <h3>Smart Swarm <span class="note">(research prototype)</span></h3>
-      <p class="note">Free-moving smart particles. Each particle only senses neighbours within a small radius (plus its own position), and every particle runs the same network (6,336 weights), which decides its colour change and where to move. <strong>Click or drag to push particles apart</strong> and watch them regroup.</p>
-      <p class="note"><strong>Honest status:</strong> this early model gathers a blob into a stable, structured formation and re-forms it after scattering, but it does not yet draw the heart it was trained on (it covers about half of it), and its colours are not learned yet. See STATUS.md.</p>
+      <p class="note" style="margin-top:0">Free-moving smart particles that assemble a heart, hold it and re-form it. <strong>Click or drag to push them apart.</strong></p>
+      <details class="about">
+        <summary>How it works · research prototype</summary>
+        <p class="note">Each particle only senses neighbours within a small radius (plus its own position), and every particle runs the same network (6,336 weights), which decides its colour change and where to move.</p>
+        <p class="note">Particles with a <strong>white ring</strong> have decided by themselves that they sit on the outline; nothing tells them where the border is. The swarm covers about 80% of the heart. The outline is crisp on the lower left and still loose on the top and right (see STATUS.md).</p>
+      </details>
     </section>
-    <section>
+    <section class="divider">
+      <h3>Simulation</h3>
       <div class="row">
         <button id="play" aria-pressed="true">Pause</button>
         <button id="reset">Reset to blob</button>
+      </div>
+      <div class="row">
         <button id="scatter" class="danger">Scatter a third</button>
       </div>
     </section>
-    <section>
+    <section class="divider">
       <label class="slider-label" for="speed"><span>Steps per frame</span><span id="speed-value">1</span></label>
       <input id="speed" type="range" min="1" max="6" value="1" />
-    </section>
-    <section class="divider">
-      <div id="stats" class="note">step 0</div>
-      <p class="note"><a href="./smart.html">← Grid Smart Particles</a> · <a href="./index.html">Particle playground</a></p>
+      <p id="stats" class="note">step 0</p>
     </section>
   </aside>
 
+  <script type="module" src="./nav.js"></script>
   <script type="module">
     import { createSwarm } from "../dist/nca.js";
     const $ = (id) => document.getElementById(id);

@@ -36,6 +36,8 @@ STATE_LIMIT = 3.0  # states are clamped to [-3, 3]; unbounded states blew up tra
 TETHER = 0.01      # weak pull toward the centre: stranded particles drift back into sensing range
 BOUND = 1.5        # safety limit only (a hard clamp at the shape's edge trapped particles: no gradient)
 FIRE_RATE = 0.5
+EDGE = 4           # hidden channel a particle can learn to raise when it sits on the shape's outline
+EDGE_BAND = 0.08   # a target point counts as outline if it is this close to the border (~ one particle spacing)
 
 
 class Swarm(nn.Module):
@@ -113,18 +115,53 @@ def target_points(name: str, n_points: int = 512, seed: int = 0):
     return torch.from_numpy(pts), torch.from_numpy(col.astype(np.float32))
 
 
+def target_outline(name: str, tpts, n_points: int = 256, seed: int = 0):
+    """Points on the border of the target (opaque pixels with a transparent 4-neighbour),
+    and for every area point in `tpts` a 0/1 label: is it within EDGE_BAND of the border.
+    Training only scores these; nothing tells a particle where the border is."""
+    from targets import TARGETS
+    a = TARGETS[name](64, 4)[3] > 0.5
+    pad = np.pad(a, 1)
+    inner = pad[:-2, 1:-1] & pad[2:, 1:-1] & pad[1:-1, :-2] & pad[1:-1, 2:]
+    ys, xs = np.nonzero(a & ~inner)
+    rng = np.random.default_rng(seed)
+    pick = rng.choice(len(xs), size=n_points, replace=len(xs) < n_points)
+    pts = np.stack([(xs[pick] + rng.uniform(-0.5, 0.5, n_points)) / 31.5 - 1,
+                    (ys[pick] + rng.uniform(-0.5, 0.5, n_points)) / 31.5 - 1], -1).astype(np.float32)
+    opts = torch.from_numpy(pts)
+    label = (torch.cdist(tpts, opts).min(-1).values < EDGE_BAND).float()
+    return opts, label
+
+
 def chamfer(pos, tpts):
     """Symmetric mean squared nearest-neighbour distance. pos (B, N, 2), tpts (M, 2)."""
     d = torch.cdist(pos, tpts[None].expand(pos.shape[0], -1, -1)) ** 2   # (B, N, M)
     return d.min(-1).values.mean(-1) + d.min(-2).values.mean(-1), d
 
 
-def loss_fn(pos, state, tpts, tcol):
+def loss_fn(pos, state, tpts, tcol, outline=None, w_outline=0.0, w_edge=0.0):
+    """outline = (outline points, per-area-point edge label) from target_outline()."""
     ch, d = chamfer(pos, tpts)
     # colour: each particle should match the colour of its nearest target point
     nearest = d.argmin(-1)                                    # (B, N)
     col_loss = ((state[..., :3] - tcol[nearest]) ** 2).mean((-1, -2))
-    return ch + 0.1 * col_loss, ch
+    loss = ch + 0.1 * col_loss
+    if outline is not None:
+        opts, label = outline
+        if w_outline:
+            # every outline point should have a particle near it: the shape's silhouette
+            do = torch.cdist(opts[None].expand(pos.shape[0], -1, -1), pos) ** 2
+            loss = loss + w_outline * do.min(-1).values.mean(-1)
+        if w_edge:
+            # each particle should know whether it is on the outline (its own signal, learned)
+            loss = loss + w_edge * ((state[..., EDGE] - label[nearest]) ** 2).mean(-1)
+    return loss, ch
+
+
+def edge_accuracy(pos, state, tpts, label):
+    """Share of particles whose own edge signal (> 0.5) matches whether they sit on the outline."""
+    nearest = torch.cdist(pos, tpts[None].expand(pos.shape[0], -1, -1)).argmin(-1)
+    return ((state[..., EDGE] > 0.5).float() == label[nearest]).float().mean(-1)
 
 
 def coverage(pos, tpts, tol=0.06):

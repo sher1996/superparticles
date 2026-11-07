@@ -14,3 +14,8 @@ Thumbs.db
 training/runs/
 __pycache__/
 .venv*/
+
+# Local image-to-3D helper: its environment, the TripoSG source and the downloaded weights
+tools/image3d/.venv/
+tools/image3d/TripoSG/
+tools/image3d/pretrained_weights/

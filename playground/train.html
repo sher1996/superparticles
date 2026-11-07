@@ -14,57 +14,39 @@
     }
   }
   </script>
+  <link rel="stylesheet" href="ui.css" />
   <style>
-    :root {
-      --bg: #0b0f17; --card: #121826; --card2: #182034; --line: #263048;
-      --fg: #e5e9f2; --muted: #93a0b8; --accent: #60a5fa; --good: #34d399; --warn: #fbbf24; --bad: #f87171;
-      color-scheme: dark;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    main { max-width: 72rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
-    h1 { font-size: 1.6rem; margin: 0; }
-    h2 { font-size: 1.1rem; margin: 0 0 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
-    h2 .n { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: #0b0f17; font-size: 0.85rem; }
-    p { margin: 0.25rem 0 0.75rem; color: var(--muted); }
-    a { color: var(--accent); }
-    .lead { max-width: 52rem; }
-    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin-top: 1rem; }
-    .grid2 { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+    h2 .n { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 0.8rem; font-weight: 700; }
+    .grid2 { display: grid; gap: 1.25rem; grid-template-columns: 1fr; }
     @media (min-width: 900px) { .grid2 { grid-template-columns: 1.2fr 1fr; } }
-    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-    button, select, input[type="file"] { font: inherit; font-size: 0.85rem; }
-    button { border: 0; border-radius: 8px; padding: 0.45rem 0.9rem; background: var(--card2); color: var(--fg); cursor: pointer; border: 1px solid var(--line); }
-    button:hover:not(:disabled) { border-color: var(--accent); }
-    button:disabled { opacity: 0.45; cursor: default; }
-    button.primary { background: var(--accent); color: #0b0f17; border-color: var(--accent); font-weight: 600; }
-    button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-    select { background: var(--card2); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 0.4rem; }
-    label { color: var(--muted); font-size: 0.85rem; }
-    .pix { image-rendering: pixelated; background: #05070c; border-radius: 8px; display: block; }
+    body.doc .row label { display: inline-flex; align-items: center; gap: 0.5rem; }
+    input[type="file"] { font: inherit; font-size: 0.8rem; color: var(--muted); }
+    input[type="file"]::file-selector-button { font: inherit; font-size: 0.78rem; margin-right: 0.6rem; padding: 0.4rem 0.75rem; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--raised); color: var(--fg); cursor: pointer; }
+    input[type="checkbox"]:not(.check input) { accent-color: var(--accent); width: 1rem; height: 1rem; }
+    #live { width: min(100%, 360px); aspect-ratio: 1; cursor: crosshair; touch-action: none; }
+    .pix { image-rendering: pixelated; background: #000; border: 1px solid var(--line); border-radius: 10px; display: block; }
 
     /* drawing pad */
     .pad-wrap { display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start; }
     #pad { width: min(100%, 320px); aspect-ratio: 1; touch-action: none; cursor: crosshair; border-radius: 8px;
-      background: repeating-conic-gradient(#1a2133 0% 25%, #141a29 0% 50%) 0 0 / 20px 20px; border: 1px solid var(--line); }
+      background: repeating-conic-gradient(#121826 0% 25%, #0d121d 0% 50%) 0 0 / 20px 20px; border: 1px solid var(--line); }
     .swatches { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .swatch { width: 1.7rem; height: 1.7rem; border-radius: 50%; padding: 0; border: 2px solid transparent; }
-    .swatch[aria-pressed="true"] { border-color: #fff; box-shadow: none; }
-    input[type="color"] { width: 2rem; height: 2rem; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: none; }
-    input[type="range"] { accent-color: var(--accent); }
+    .swatch { width: 1.8rem; height: 1.8rem; border-radius: 50%; padding: 0; border: 2px solid rgba(255,255,255,0.1); flex: none !important; }
+    .swatches input[type="color"] { border-radius: 50%; width: 1.8rem; height: 1.8rem; }
+    .swatch[aria-pressed="true"] { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.15); background-clip: padding-box; }
     #target-view { width: 160px; height: 160px; }
 
     /* cycle diagram */
     .cycle { display: grid; gap: 0.5rem; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); counter-reset: ph; }
-    .phase { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.7rem; transition: border-color .2s, transform .2s, background .2s; }
+    .phase { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 0.6rem 0.7rem; transition: border-color .2s, transform .2s, background .2s; }
     .phase b { display: block; font-size: 0.85rem; }
     .phase b::before { counter-increment: ph; content: counter(ph) ". "; color: var(--accent); }
     .phase span { color: var(--muted); font-size: 0.78rem; line-height: 1.35; display: block; margin-top: 0.15rem; }
-    .phase.active { border-color: var(--accent); background: #1b2742; transform: translateY(-2px); }
+    .phase.active { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-2px); }
 
     /* batch */
     .batch { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
-    .sample { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem; }
+    .sample { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem; }
     .sample .pair { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.3rem; align-items: center; }
     .sample canvas { width: 100%; aspect-ratio: 1; }
     .sample .arrow { color: var(--muted); font-size: 0.8rem; }
@@ -75,7 +57,7 @@
     .cap { font-size: 0.72rem; color: var(--muted); text-align: center; }
 
     /* charts and strips */
-    #loss { width: 100%; height: 170px; background: #05070c; border-radius: 8px; display: block; }
+    #loss { width: 100%; height: 170px; background: #000; border: 1px solid var(--line); border-radius: 10px; display: block; }
     #error-view { width: 160px; height: 160px; }
     .strip { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.4rem; }
     .strip canvas { width: 100%; aspect-ratio: 1; }
@@ -84,10 +66,10 @@
     .history canvas { width: 64px; height: 64px; }
     .stat { font-variant-numeric: tabular-nums; }
     .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0.5rem; }
-    .stats > div { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; }
+    .stats > div { background: var(--raised); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; }
     .stats .k { color: var(--muted); font-size: 0.75rem; }
     .stats .v { font-size: 1.1rem; font-weight: 600; }
-    #explain { border-left: 3px solid var(--accent); padding: 0.4rem 0.75rem; background: var(--card2); border-radius: 0 8px 8px 0; color: var(--fg); min-height: 3.2em; }
+    #explain { border-left: 3px solid var(--accent); padding: 0.4rem 0.75rem; background: var(--raised); border-radius: 0 8px 8px 0; color: var(--fg); min-height: 3.2em; }
     details { margin-top: 0.5rem; }
     summary { cursor: pointer; color: var(--accent); }
     dl { margin: 0.5rem 0 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1rem; }
@@ -167,7 +149,7 @@
     <p>Each training step repeats the same six-part cycle. The highlighted box is what is happening right now.</p>
     <div class="cycle" id="cycle">
       <div class="phase" data-phase="sample"><b>Pick examples</b><span>Take 4 grids from the <em>pool</em>, a memory of earlier attempts.</span></div>
-      <div class="phase" data-phase="prepare"><b>Reset and damage</b><span>The worst becomes a fresh single <em>seed</em>. After step 100, one gets a hole cut in it.</span></div>
+      <div class="phase" data-phase="prepare"><b>Reset and damage</b><span>The worst becomes a fresh single <em>seed</em>. Once the cells can grow something, one gets a hole cut in it.</span></div>
       <div class="phase" data-phase="run"><b>Let the cells run</b><span>Every cell looks only at its 8 neighbours and updates itself, dozens of times in a row.</span></div>
       <div class="phase" data-phase="compare"><b>Compare</b><span>Measure how far the result is from your drawing: the <em>loss</em>.</span></div>
       <div class="phase" data-phase="learn"><b>Adjust the rule</b><span>Nudge the network's 8,320 weights in the direction that lowers the loss (<em>gradient descent</em>).</span></div>
@@ -183,6 +165,28 @@
       <div><div class="k">Backend</div><div class="v stat" id="s-backend">–</div></div>
     </div>
 
+    <div class="grid2" style="margin-top:1.25rem">
+      <div>
+        <h2>Live</h2>
+        <canvas id="live" class="pix" width="32" height="32" aria-label="Live cells: click to cut a hole"></canvas>
+      </div>
+      <div>
+        <p>The cells running the rule <strong>as it is being learned</strong>, in real time: a single seed grows, and the rule changes under it with every training step. Click the cells to cut a hole and watch them try to heal.</p>
+        <div class="row" style="margin-top:0.75rem">
+          <button id="live-restart" disabled>Restart from seed</button>
+          <label>Speed
+            <select id="live-speed">
+              <option value="1">1 update per frame</option>
+              <option value="2" selected>2 updates per frame</option>
+              <option value="4">4 updates per frame</option>
+            </select>
+          </label>
+          <label class="row"><input id="live-loop" type="checkbox" checked /> restart every 300 updates</label>
+        </div>
+        <p class="stat" id="live-age" style="margin-top:0.75rem;color:var(--muted)">Starts with training.</p>
+      </div>
+    </div>
+
     <h2 style="margin-top:1.25rem">This step's examples</h2>
     <p>Left: the grid going in. Right: after the cells ran. The label says why it is in the batch.</p>
     <div class="batch" id="batch"></div>
@@ -190,7 +194,7 @@
     <div class="grid2" style="margin-top:1.25rem">
       <div>
         <h2>Loss over time</h2>
-        <p>Loss on a log scale. The red line marks step 100, where damage training starts, so a small bump there is normal.</p>
+        <p>Loss on a log scale. The red line marks where damage training starts, so a small bump there is normal.</p>
         <canvas id="loss" width="900" height="340" aria-label="Loss chart"></canvas>
       </div>
       <div>
@@ -231,6 +235,7 @@
     </details>
   </section>
 </main>
+<script type="module" src="./nav.js"></script>
 <script type="module" src="./train.js"></script>
 </body>
 </html>

@@ -2,6 +2,16 @@
 
 The playground lets you try particle settings and plugins interactively. To run it, build and serve the repo (`npm run build && npm start`), then open <http://localhost:8000/playground/>.
 
+## Layout
+
+Every page shares one dark design system (`playground/ui.css`) and one shell (`playground/nav.js`):
+
+- The controls sit in a sidebar on the left. The **☰** button opens a menu of every playground page, grouped into *Particles*, *Smart Particles* and *3D shapes*. The **⌃** button folds the sidebar away; on phones it starts folded.
+- Long explanations are tucked into **How it works** sections.
+- Document pages (training, benchmark) get a top bar with the same menu.
+
+New pages: give the canvas the id `sp`, `nca` or `view`, put the controls in `<aside id="panel">`, load `ui.css`, and load `nav.js` before the page script. Add the page to `PAGES` in `nav.js`.
+
 ## Controls
 
 ### Renderer
@@ -42,7 +52,10 @@ Turning both on makes them roughly cancel out.
 
 ## Presets
 
-- **Copy URL**: encodes the current settings and active plugins into the URL hash, so you can share them.
+The buttons at the bottom of the panel.
+
+
+- **Copy link**: encodes the current settings and active plugins into the URL hash, so you can share them.
 - **Reset**: restores the defaults, turns off all plugins and switches back to Canvas2D.
 
 ## Persistence

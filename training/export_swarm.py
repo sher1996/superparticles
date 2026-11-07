@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from swarm import BOUND, C, FIRE_RATE, HIDDEN, RADIUS, SPEED, STATE_LIMIT, TETHER, Swarm, blob, hash_fire
+from swarm import BOUND, C, EDGE, FIRE_RATE, HIDDEN, RADIUS, SPEED, STATE_LIMIT, TETHER, Swarm, blob, hash_fire
 
 
 def b64(a):
@@ -45,6 +45,7 @@ def main():
         "format": "superparticles-swarm", "version": 1, "name": cfg["target"],
         "particles": cfg["particles"], "channels": C, "hidden": HIDDEN,
         "radius": RADIUS, "speed": SPEED, "stateLimit": STATE_LIMIT, "tether": TETHER, "bound": BOUND, "fireRate": FIRE_RATE, "dtype": args.dtype,
+        **({"edgeChannel": EDGE} if cfg.get("edge") else {}),
         "weights": {k: {"shape": list(v.shape), "data": b64(v)} for k, v in q.items()},
         "sha256": hashlib.sha256(blob_bytes).hexdigest(),
         "training": {k: cfg[k] for k in ("target", "particles", "steps", "batch", "pool", "seed", "params", "torch")},

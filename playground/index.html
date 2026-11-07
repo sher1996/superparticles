@@ -11,72 +11,92 @@
 
   <aside id="panel">
     <section>
-      <h3>Renderer</h3>
-      <div class="row" role="group" aria-label="Renderer">
-        <button id="renderer-canvas2d" data-renderer="canvas2d">Canvas2D</button>
-        <button id="renderer-webgl2" data-renderer="webgl2">WebGL2</button>
-        <button id="renderer-webgpu" data-renderer="webgpu">WebGPU</button>
+      <h3>Mode</h3>
+      <div class="seg" role="group" aria-label="Mode">
+        <button id="mode-engine" data-mode="engine">Free particles</button>
+        <button id="mode-swarm" data-mode="swarm">Smart swarm</button>
       </div>
-      <p id="renderer-note" class="note" hidden></p>
     </section>
 
-    <section>
-      <label class="slider-label" for="speed-slider">
-        <span>Speed</span><span id="speed-value">40</span>
-      </label>
-      <input id="speed-slider" type="range" min="1" max="100" value="40" />
-    </section>
+    <div id="swarm-controls" hidden>
+      <section>
+        <details class="about">
+          <summary>How the swarm works</summary>
+          <p class="note">The same particles, steered by a learned swarm you don't see: 256 smart leaders assemble a heart and re-form it, and every particle follows one of them. <strong>Click or drag</strong> to push them apart. More particles fill the shape better.</p>
+        </details>
+      </section>
+      <section>
+        <div class="row">
+          <button id="swarm-scatter" class="danger">Scatter a third</button>
+          <button id="swarm-reset">Reset to blob</button>
+        </div>
+      </section>
+      <section>
+        <label class="slider-label" for="swarm-speed">
+          <span>Swarm speed</span><span id="swarm-speed-value">1</span>
+        </label>
+        <input id="swarm-speed" type="range" min="1" max="4" value="1" />
+        <p id="swarm-stats" class="note">loading the swarm…</p>
+      </section>
+    </div>
 
-    <section>
-      <label class="slider-label" for="particle-count-slider">
-        <span>Particles</span><span id="particle-count-value">1000</span>
-      </label>
-      <input id="particle-count-slider" type="range" min="100" max="20000" value="1000" step="100" />
-    </section>
+    <div id="engine-controls">
+      <section class="divider">
+        <h3>Renderer</h3>
+        <div class="seg" role="group" aria-label="Renderer">
+          <button id="renderer-canvas2d" data-renderer="canvas2d">Canvas2D</button>
+          <button id="renderer-webgl2" data-renderer="webgl2">WebGL2</button>
+          <button id="renderer-webgpu" data-renderer="webgpu">WebGPU</button>
+        </div>
+        <p id="renderer-note" class="note" hidden></p>
+      </section>
 
-    <section>
-      <label class="slider-label" for="particle-size-slider">
-        <span>Size</span><span id="particle-size-value">2</span>
-      </label>
-      <input id="particle-size-slider" type="range" min="1" max="8" value="2" step="0.5" />
-    </section>
+      <section class="divider">
+        <h3>Particles</h3>
+        <label class="slider-label" for="speed-slider">
+          <span>Speed</span><span id="speed-value">40</span>
+        </label>
+        <input id="speed-slider" type="range" min="1" max="100" value="40" />
 
-    <section>
-      <label class="check">
-        <input id="deterministic-toggle" type="checkbox" />
-        <span>Deterministic</span>
-      </label>
-    </section>
+        <label class="slider-label" for="particle-count-slider">
+          <span>Count</span><span id="particle-count-value">1000</span>
+        </label>
+        <input id="particle-count-slider" type="range" min="100" max="20000" value="1000" step="100" />
 
-    <section>
-      <label class="check">
-        <span>Color</span>
-        <input id="color-picker" type="color" value="#70c1ff" />
-      </label>
-    </section>
+        <label class="slider-label" for="particle-size-slider">
+          <span>Size</span><span id="particle-size-value">2</span>
+        </label>
+        <input id="particle-size-slider" type="range" min="1" max="8" value="2" step="0.5" />
+      </section>
 
-    <section>
+      <section>
+        <label class="check">
+          <span>Color</span>
+          <input id="color-picker" type="color" value="#70c1ff" />
+        </label>
+        <label class="check">
+          <input id="deterministic-toggle" type="checkbox" />
+          <span>Deterministic (fixed seed)</span>
+        </label>
+      </section>
+    </div>
+
+    <section class="divider" id="plugins-section">
       <h3>Plugins</h3>
       <div id="plugin-list"></div>
     </section>
 
     <section class="divider">
-      <h3>Presets</h3>
-      <div class="row">
-        <button id="copy-preset" class="go">Copy URL</button>
-        <button id="reset-preset" class="danger">Reset</button>
-      </div>
-    </section>
-
-    <section class="divider">
       <div class="row">
         <button id="play-toggle" aria-pressed="true">Pause</button>
+        <button id="copy-preset" title="Copy a link with these settings">Copy link</button>
+        <button id="reset-preset" class="danger">Reset</button>
       </div>
-      <div id="fps-display" class="note">FPS: --</div>
-      <p class="note"><a href="./smart.html">Smart Particles (neural cellular automata) →</a></p>
+      <p id="fps-display" class="note">FPS: --</p>
     </section>
   </aside>
 
+  <script type="module" src="./nav.js"></script>
   <script type="module" src="./app.js"></script>
 </body>
 </html>

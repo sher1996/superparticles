@@ -68,7 +68,7 @@ async function canvasStats(page) {
   }, 'data:image/png;base64,' + png.toString('base64'));
 }
 
-const pressed = page => page.getAttribute('[aria-pressed="true"]', 'data-renderer');
+const pressed = page => page.getAttribute('[data-renderer][aria-pressed="true"]', 'data-renderer');
 
 test('Canvas2D draws visible particles and reacts to the controls', async () => {
   const { page, errors } = await openPlayground();

@@ -264,13 +264,14 @@ function drawLoss() {
   g.fillText(Math.pow(10, lo).toFixed(3), 2, c.height - 28);
   g.fillText(`step ${losses.length}`, c.width - 120, c.height - 2);
   // damage marker
-  if (losses.length > 100) {
+  const d = trainer.damageFrom;
+  if (losses.length > d) {
     g.strokeStyle = "#f87171";
     g.setLineDash([6, 6]);
-    g.beginPath(); g.moveTo(X(100), 10); g.lineTo(X(100), c.height - 24); g.stroke();
+    g.beginPath(); g.moveTo(X(d), 10); g.lineTo(X(d), c.height - 24); g.stroke();
     g.setLineDash([]);
     g.fillStyle = "#f87171";
-    g.fillText("damage on", X(100) + 6, 26);
+    g.fillText("damage on", X(d) + 6, 26);
   }
   // raw (faint) + smoothed
   g.strokeStyle = "rgba(96,165,250,0.3)";
@@ -320,6 +321,41 @@ async function pace(ms) {
   while (paused && running) await sleep(100);
 }
 
+// ---- live view ---------------------------------------------------------------------
+
+// Runs between training steps on the same GPU, with the weights as they are right now.
+let live = null, liveBusy = false;
+async function liveFrame() {
+  requestAnimationFrame(liveFrame);
+  if (!live || liveBusy) return;
+  liveBusy = true;
+  try {
+    if ($("live-loop").checked && live.age >= 300) live.reset();
+    live.step(Number($("live-speed").value));
+    const rgba = await live.read();
+    if (live) {
+      drawRGBA($("live"), rgba, 4);
+      $("live-age").textContent = `${live.age} updates since the seed · rule from training step ${trainer.step}`;
+    }
+  } finally {
+    liveBusy = false;
+  }
+}
+requestAnimationFrame(liveFrame);
+
+function startLive() {
+  live?.dispose();
+  live = trainer.live();
+  $("live").width = $("live").height = SIZE;
+  $("live-restart").disabled = false;
+}
+$("live-restart").onclick = () => live?.reset();
+$("live").addEventListener("pointerdown", (e) => {
+  if (!live) return;
+  const r = $("live").getBoundingClientRect();
+  live.cut(((e.clientX - r.left) / r.width) * SIZE, ((e.clientY - r.top) / r.height) * SIZE, SIZE * 0.15);
+});
+
 // ---- training --------------------------------------------------------------------
 
 async function testGrowth(step) {
@@ -338,13 +374,20 @@ async function testGrowth(step) {
 
 $("start").onclick = async () => {
   if (!target) return;
+  live?.dispose();
+  live = null;
   trainer?.dispose();
   losses.length = 0;
   const total = Number($("steps").value);
   const d = detail();
-  trainer = createTrainer(tf, target, { size: SIZE, steps: total, rollout: d.rollout });
+  // Short runs (measured at 100 and 300 steps on the heart): a higher learning rate,
+  // a small pool so results get continued past the training rollout (stops overgrowth),
+  // and damage from halfway. ~2-3x lower error and much better healing in the same time.
+  const short = total <= 300 ? { lr: 7e-3, pool: 32, warmup: Math.round(total / 10), damageFrom: Math.round(total / 2) } : {};
+  trainer = createTrainer(tf, target, { size: SIZE, steps: total, rollout: d.rollout, ...short });
   buildBatch(trainer.batch);
   buildStrip();
+  startLive();
   running = true;
   paused = false;
   for (const id of ["start", "detail", "preset", "file", "clear"]) $(id).disabled = true;
@@ -355,12 +398,12 @@ $("start").onclick = async () => {
 
   while (running && trainer.step < total) {
     const stepNo = trainer.step + 1;
-    const damaging = stepNo > 100;
-    setPhase("sample", `<strong>Step ${stepNo}.</strong> Picking ${trainer.batch} examples from the pool of 256 earlier attempts.`);
+    const damaging = stepNo > trainer.damageFrom;
+    setPhase("sample", `<strong>Step ${stepNo}.</strong> Picking ${trainer.batch} examples from the pool of ${trainer.pool} earlier attempts.`);
     await pace(500);
     setPhase("prepare", damaging
       ? "The worst example is replaced by a fresh seed, and a hole is cut in the best one, so the rule must learn to <strong>grow</strong>, <strong>keep</strong> and <strong>heal</strong>."
-      : "The worst example is replaced by a fresh seed. Damage starts at step 100, once the cells can grow something.");
+      : `The worst example is replaced by a fresh seed. Damage starts at step ${trainer.damageFrom}, once the cells can grow something.`);
     await pace(500);
     setPhase("run", `All ${SIZE * SIZE} cells run the same rule, updating ${d.rollout[0]}–${d.rollout[1]} times. Each only sees its neighbours.`);
 

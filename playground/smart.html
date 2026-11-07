@@ -11,25 +11,26 @@
 
   <aside id="panel">
     <section>
-      <h3>Smart Particles</h3>
-      <p class="note">Every dot is a cell running the same tiny neural network (8,320 weights). It only sees its neighbours, yet together they grow the shape from one seed and heal it after damage. <strong>Click or drag to cut holes.</strong></p>
+      <p class="note" style="margin-top:0">Every dot runs the same tiny neural network and only sees its neighbours, yet together they grow the shape from one seed and heal it. <strong>Click or drag to cut holes.</strong></p>
+      <details class="about">
+        <summary>How it works</summary>
+        <p class="note">Each cell holds 16 numbers: colour, opacity and 12 hidden values it uses to signal to its neighbours. One network of 8,320 weights decides how every cell updates. Nothing tells a cell where it is.</p>
+      </details>
     </section>
 
-    <section>
+    <section class="divider">
       <h3>Model</h3>
       <select id="model-select" aria-label="Model"></select>
       <p id="backend-note" class="note"></p>
     </section>
 
-    <section>
+    <section class="divider">
+      <h3>Simulation</h3>
       <div class="row">
         <button id="play" aria-pressed="true">Pause</button>
         <button id="step">Step</button>
         <button id="reset">Reset to seed</button>
       </div>
-    </section>
-
-    <section>
       <div class="row">
         <button id="punch" class="danger">Punch hole</button>
         <button id="halve" class="danger">Cut in half</button>
@@ -37,22 +38,20 @@
       <p id="recovery" class="note">Damage it to measure recovery.</p>
     </section>
 
-    <section>
+    <section class="divider">
       <label class="slider-label" for="speed">
         <span>Steps per frame</span><span id="speed-value">1</span>
       </label>
       <input id="speed" type="range" min="1" max="8" value="1" />
-    </section>
 
-    <section>
       <label class="slider-label" for="channel">
-        <span>View</span><span id="channel-value">colour</span>
+        <span>View channel</span><span id="channel-value">colour</span>
       </label>
       <input id="channel" type="range" min="3" max="15" value="3" aria-label="Channel to show (3 = colour, 4-15 = hidden state)" />
-      <p class="note">Slide right to see the hidden channels the cells use to communicate.</p>
+      <p class="note">Slide right to see the hidden channels the cells use to talk.</p>
     </section>
 
-    <section>
+    <section class="divider">
       <h3>Share</h3>
       <div class="row">
         <button id="record">Record 8 s video</button>
@@ -62,11 +61,14 @@
     </section>
 
     <section class="divider">
-      <div id="stats" class="note">step 0</div>
-      <p class="note"><a href="./train.html">Train your own shape →</a> · <a href="./swarm.html">Moving swarm →</a> · <a href="./smart3d.html">3D →</a> · <a href="./index.html">Playground</a></p>
+      <div class="row">
+        <a class="link-btn" href="./train.html">Train your own shape →</a>
+      </div>
+      <p id="stats" class="note">step 0</p>
     </section>
   </aside>
 
+  <script type="module" src="./nav.js"></script>
   <script type="module" src="./smart.js"></script>
 </body>
 </html>

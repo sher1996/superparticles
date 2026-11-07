@@ -19,7 +19,7 @@ import numpy as np
 import torch
 from PIL import Image, ImageDraw
 
-from swarm import Swarm, blob, chamfer, coverage, hash_fire, scatter, target_points
+from swarm import EDGE, Swarm, blob, chamfer, coverage, edge_accuracy, hash_fire, scatter, target_outline, target_points
 
 
 def run(model, pos, st, start, steps, seed):
@@ -32,9 +32,10 @@ def run(model, pos, st, start, steps, seed):
 def picture(pos, st, size=160):
     img = Image.new("RGB", (size, size), "black")
     d = ImageDraw.Draw(img)
-    for (x, y), c in zip(pos[0].tolist(), st[0, :, :3].clamp(0, 1).tolist()):
+    for (x, y), c, e in zip(pos[0].tolist(), st[0, :, :3].clamp(0, 1).tolist(), st[0, :, EDGE].tolist()):
         px, py = (x + 1.1) / 2.2 * size, (y + 1.1) / 2.2 * size
-        d.ellipse([px - 2, py - 2, px + 2, py + 2], fill=tuple(int(v * 255) for v in c))
+        # ring = the particle itself says it is on the outline
+        d.ellipse([px - 2, py - 2, px + 2, py + 2], fill=tuple(int(v * 255) for v in c), outline=(255, 255, 255) if e > 0.5 else None)
     return img
 
 
@@ -45,6 +46,7 @@ def main():
     model = Swarm()
     model.load_state_dict(ckpt["model"])
     tpts, _ = target_points(cfg["target"])
+    opts, olab = target_outline(cfg["target"], tpts)
     n, seed = cfg["particles"], 7
     g = torch.Generator().manual_seed(123)
     with torch.no_grad():
@@ -53,6 +55,8 @@ def main():
         pos, st = run(model, pos, st, 0, 150, seed)
         sheet.append(picture(pos, st))
         cov = coverage(pos, tpts).item()
+        ocov = coverage(pos, opts).item()
+        eacc = edge_accuracy(pos, st, tpts, olab).item()
         ch = chamfer(pos, tpts)[0].item()
         lp, ls = run(model, pos, st, 150, 450, seed)
         persist = coverage(lp, tpts).item()
@@ -67,6 +71,8 @@ def main():
                 sheet += [picture(dp, st), picture(hp, hs)]
     metrics = {
         "assemble_coverage": round(cov, 4),
+        "assemble_outline_coverage": round(ocov, 4),
+        "edge_signal_accuracy": round(eacc, 4),
         "assemble_chamfer": round(ch, 5),
         "persist_coverage": round(persist, 4),
         "recover_coverage": round(float(np.mean(rec)), 4),

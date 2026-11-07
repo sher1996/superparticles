@@ -1,4 +1,4 @@
-import { init, setOptions, exportState, importState, setPluginEnabled } from "../dist/index.js";
+import { init, setOptions, exportState, importState, setPluginEnabled, registerPlugin } from "../dist/index.js";
 
 // Known plugins and their types (match keys in plugins/manifest.json)
 const plugins = [
@@ -103,7 +103,9 @@ async function initRenderer(rendererType) {
   engineHandle = null;
 
   setOptions({ useWebGL: rendererType === "webgl2", useWebGPU: rendererType === "webgpu" });
-  const handle = await init(freshCanvas(), exportState());
+  const canvas = freshCanvas();
+  if (smartMode) canvas.className = "beside-panel";
+  const handle = await init(canvas, exportState());
 
   // A newer click may have started another renderer while this one loaded
   if (token !== initToken) {
@@ -115,10 +117,100 @@ async function initRenderer(rendererType) {
   for (const plugin of plugins) {
     setPluginEnabled(plugin.type, plugin.id, activePlugins.has(plugin.id));
   }
+  setPluginEnabled("force", "smart-swarm", smartMode);
 
   showRenderer(rendererType, handle.renderer);
   syncPlay();
   saveState();
+}
+
+// ---- smart swarm mode ---------------------------------------------------------------
+// The same engine particles as always, steered by a learned swarm that is never drawn:
+// particle i follows swarm particle i % 256, at its own small fixed offset.
+
+let smartMode = false;
+let swarm = null; // SwarmCPU, loaded on first use
+let swarmStepsPerStep = 1;
+
+const SPRING = 0.03; // pull toward the target, per step (the engine's own damping and drift stay on)
+
+function hash01(i, k) {
+  let h = Math.imul(i ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul(k + 1, 0xc2b2ae35);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0x27d4eb2f);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
+// world (CSS px) <-> swarm coordinates ([-1, 1], y down), shape centred in the canvas
+const swarmScale = ({ w, h }) => Math.min(w, h) / 2.2;
+
+registerPlugin("smart-swarm", {
+  registerForce: (add) =>
+    add((p, i, bounds) => {
+      if (!swarm) return;
+      if (i === 0) swarm.advance(swarmStepsPerStep); // one swarm step per engine step
+      const j = i % swarm.n;
+      const s = swarmScale(bounds);
+      // spread each follower inside a small disc around its leader, so thousands fill the shape
+      // (about one leader spacing wide, so neighbouring groups blend instead of clumping)
+      const a = hash01(i, 0) * Math.PI * 2, r = Math.sqrt(hash01(i, 1)) * 0.085 * s;
+      const tx = bounds.w / 2 + swarm.pos[2 * j] * s + Math.cos(a) * r;
+      const ty = bounds.h / 2 + swarm.pos[2 * j + 1] * s + Math.sin(a) * r;
+      p.x += (tx - p.x) * SPRING;
+      p.y += (ty - p.y) * SPRING;
+    }),
+});
+
+async function loadSwarmSim() {
+  if (swarm) return;
+  const { loadSwarm, SwarmCPU } = await import("../dist/nca.js");
+  swarm = new SwarmCPU(await loadSwarm("../models/swarm-heart.swarm.json"));
+}
+
+function showMode() {
+  document.querySelectorAll("[data-mode]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", String((btn.dataset.mode === "swarm") === smartMode));
+  });
+  $("swarm-controls").hidden = !smartMode;
+  try {
+    localStorage.setItem("sp_mode", smartMode ? "swarm" : "engine");
+  } catch {}
+}
+
+async function setMode(swarmOn) {
+  smartMode = swarmOn;
+  showMode();
+  if (swarmOn) await loadSwarmSim();
+  await initRenderer(rendererFromState(exportState()));
+}
+
+function initSwarmControls() {
+  $("mode-engine").onclick = () => setMode(false);
+  $("mode-swarm").onclick = () => setMode(true);
+  $("swarm-scatter").onclick = () => swarm?.scatter((Math.random() - 0.5) * 0.8, (Math.random() - 0.5) * 0.8, 0.45);
+  $("swarm-reset").onclick = () => swarm?.reset();
+  $("swarm-speed").oninput = (e) => {
+    $("swarm-speed-value").textContent = e.target.value;
+    swarmStepsPerStep = Number(e.target.value);
+  };
+  // click or drag on the canvas scatters the swarm under the pointer, as on the swarm page
+  let down = false;
+  const scatterAt = (e, r) => {
+    if (!smartMode || !swarm) return;
+    const c = $("sp"), rect = c.getBoundingClientRect();
+    const s = swarmScale({ w: rect.width, h: rect.height });
+    swarm.scatter((e.clientX - rect.left - rect.width / 2) / s, (e.clientY - rect.top - rect.height / 2) / s, r);
+  };
+  document.addEventListener("pointerdown", (e) => {
+    if (e.target.id !== "sp") return;
+    down = true;
+    scatterAt(e, 0.3);
+  });
+  document.addEventListener("pointermove", (e) => { if (down && e.target.id === "sp") scatterAt(e, 0.2); });
+  addEventListener("pointerup", () => { down = false; });
+  setInterval(() => {
+    if (smartMode && swarm) $("swarm-stats").textContent = `swarm step ${swarm.step} · ${swarm.n} leaders · ${exportState().particleCount} particles follow them`;
+  }, 250);
 }
 
 function syncPlay() {
@@ -191,7 +283,7 @@ function initPresets() {
     const url = `${location.origin}${location.pathname}#${encodeURIComponent(btoa(JSON.stringify(payload)))}`;
     navigator.clipboard.writeText(url).then(() => {
       copyBtn.textContent = "Copied!";
-      setTimeout(() => { copyBtn.textContent = "Copy URL"; }, 2000);
+      setTimeout(() => { copyBtn.textContent = "Copy link"; }, 2000);
     }).catch(() => {
       prompt("Copy this URL:", url);
     });
@@ -237,5 +329,10 @@ initPlugins();
 initPresets();
 syncUI();
 initFPS();
+initSwarmControls();
 
-await initRenderer(rendererFromState(exportState()));
+let savedMode = "engine";
+try {
+  savedMode = localStorage.getItem("sp_mode") || "engine";
+} catch {}
+await setMode(savedMode === "swarm" && !location.hash);

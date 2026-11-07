@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orchestrated 3D Shapes</title>
+  <link rel="stylesheet" href="ui.css" />
+</head>
+<body>
+  <canvas id="view" aria-label="3D shape of particles: drag to turn it"></canvas>
+  <aside id="panel">
+    <section>
+      <p class="note" style="margin-top:0">An <strong>orchestrator</strong> watches the shape and sends instructions where it's wrong; <strong>smart particles</strong> carry them out and thousands of <strong>followers</strong> listen to them. Drag to turn it.</p>
+      <details class="about">
+        <summary>How it works</summary>
+        <p class="note">The smart particles travel to their zone, sense the surface and keep their spacing on their own. Thin parts automatically get a bigger share of them, and more smart particles draw finer detail.</p>
+      </details>
+    </section>
+
+    <section class="divider">
+      <h3>Shape</h3>
+      <div class="row">
+        <select id="shape" aria-label="Shape"></select>
+        <input id="image" type="file" accept="image/*" aria-label="Your own image" hidden />
+        <button id="upload">Image…</button>
+      </div>
+      <div class="row">
+        <input id="ai-image" type="file" accept="image/*" aria-label="Image to 3D with the local AI" hidden />
+        <button id="ai-upload" class="go">Image → 3D with local AI…</button>
+      </div>
+      <p class="note" id="ai-note">The local AI (TripoSG, on your GPU) imagines the whole object, back included. Start it with <code>tools/image3d/.venv/Scripts/python.exe tools/image3d/server.py</code>.</p>
+    </section>
+
+    <section class="divider">
+      <h3>Orchestrator</h3>
+      <div class="row">
+        <select id="brain" aria-label="Orchestrator">
+          <option value="planner">Hand-written orchestrator</option>
+          <option value="saved" disabled>Trained brain (none saved yet)</option>
+        </select>
+        <input id="brain-file" type="file" accept=".json,application/json" hidden />
+        <button id="load">Load…</button>
+      </div>
+      <p class="note" id="brain-note"><a href="./heart3d-train.html">Train a brain</a> and it is saved in this browser.</p>
+      <ul id="report" style="margin-top:0.6rem"></ul>
+    </section>
+
+    <section class="divider">
+      <h3>How identical is it</h3>
+      <div class="stat-grid">
+        <span>Surface covered</span><b id="stat-cover">–</b>
+        <span>Thin parts covered</span><b id="stat-thin">–</b>
+        <span>Distance to surface (% of size)</span><b id="stat-err">–</b>
+        <span>Smart team</span><b id="stat-team">–</b>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Break it, watch it get fixed</h3>
+      <div class="row">
+        <button id="cut-lobe" class="danger">Knock a piece off</button>
+        <button id="scatter" class="danger">Scatter a patch</button>
+      </div>
+      <div class="row">
+        <button id="explode" class="danger">Explode</button>
+        <button id="reset">Start from a blob</button>
+      </div>
+    </section>
+
+    <section class="divider">
+      <h3>Swarm</h3>
+      <label class="slider-label" for="smart"><span>Smart particles</span><span id="smart-value">600</span></label>
+      <input id="smart" type="range" min="300" max="2000" step="100" value="600" />
+      <label class="slider-label" for="followers"><span>Followers</span><span id="followers-value">8000</span></label>
+      <input id="followers" type="range" min="1000" max="30000" step="1000" value="8000" />
+      <label class="slider-label" for="size"><span>Size</span><span id="size-value">2</span></label>
+      <input id="size" type="range" min="1" max="8" step="0.5" value="2" />
+      <label class="slider-label" for="speed"><span>Speed</span><span id="speed-value">40</span></label>
+      <input id="speed" type="range" min="1" max="100" value="40" />
+    </section>
+
+    <section class="divider">
+      <h3>Colours</h3>
+      <select id="paint" aria-label="Colouring">
+        <option value="single">One colour</option>
+        <option value="gradient">Gradient, bottom to top</option>
+        <option value="rainbow">Rainbow</option>
+        <option value="picture" disabled>From the picture (use a picture first)</option>
+      </select>
+      <label class="check" style="margin-top:0.4rem"><span>Colour</span><input id="color" type="color" value="#70c1ff" /></label>
+      <label class="check" id="color2-row" hidden><span>Bottom colour</span><input id="color2" type="color" value="#ff5fa8" /></label>
+    </section>
+
+    <section class="divider">
+      <h3>View</h3>
+      <label class="check"><span>Depth shading</span><input id="depth" type="checkbox" checked /></label>
+      <label class="check"><span>Turn slowly</span><input id="rotate" type="checkbox" checked /></label>
+      <label class="check"><span>Show the smart particles</span><input id="show-smart" type="checkbox" /></label>
+      <div class="row" style="margin-top:0.5rem"><button id="play" aria-pressed="true">Pause</button></div>
+    </section>
+  </aside>
+  <script type="module" src="./nav.js"></script>
+  <script type="module" src="./heart3d.js"></script>
+</body>
+</html>
