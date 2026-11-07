@@ -23,6 +23,8 @@ export interface SwarmModelFile {
   tether?: number;
   /** Positions are clamped to ±bound (default 1). */
   bound?: number;
+  /** State channel the particles learned to raise on the shape's outline (absent = none). */
+  edgeChannel?: number;
   fireRate: number;
   dtype: 'float16' | 'float32';
   weights: Record<'w1' | 'b1' | 'w2', { shape: number[]; data: string }>;
@@ -40,6 +42,8 @@ export interface SwarmModel {
   stateLimit: number;
   tether: number;
   bound: number;
+  /** -1 when the model has no learned edge signal. */
+  edgeChannel: number;
   fireRate: number;
   w1: Float32Array; // (hidden, 4C + 3): [state | mean | gx | gy | log1p(density) | x, y]
   b1: Float32Array; // (hidden)
@@ -63,7 +67,7 @@ export function parseSwarm(doc: SwarmModelFile): SwarmModel {
   };
   return {
     name: doc.name, particles: doc.particles, channels: C, hidden: H,
-    radius: doc.radius, speed: doc.speed, stateLimit: doc.stateLimit ?? 3, tether: doc.tether ?? 0, bound: doc.bound ?? 1, fireRate: doc.fireRate,
+    radius: doc.radius, speed: doc.speed, stateLimit: doc.stateLimit ?? 3, tether: doc.tether ?? 0, bound: doc.bound ?? 1, edgeChannel: doc.edgeChannel ?? -1, fireRate: doc.fireRate,
     w1: read('w1', [H, 4 * C + 3]), b1: read('b1', [H]), w2: read('w2', [C + 2, H]),
     metrics: doc.metrics,
   };
@@ -218,12 +222,16 @@ export interface SwarmViewOptions {
   reducedMotion?: 'pause' | 'ignore';
   /** Click/drag scatters nearby particles (default true). */
   interactive?: boolean;
+  /** Ring the particles that say they are on the outline, if the model learned that (default true). */
+  showEdges?: boolean;
 }
 
 /** A Canvas2D view of a learned swarm with click-to-scatter. */
 export class SwarmView {
   readonly sim: SwarmCPU;
   stepsPerFrame: number;
+  /** Ring the particles that signal they are on the outline (if the model learned that). */
+  showEdges: boolean;
   private raf = 0;
   private running = false;
   private stopped = false;
@@ -236,6 +244,7 @@ export class SwarmView {
     this.ctx = ctx;
     this.sim = new SwarmCPU(model, { particles: opts.particles, seed: opts.seed });
     this.stepsPerFrame = opts.stepsPerFrame ?? 1;
+    this.showEdges = opts.showEdges ?? true;
   }
 
   static async create(canvas: HTMLCanvasElement, opts: SwarmViewOptions) {
@@ -295,12 +304,17 @@ export class SwarmView {
     const s = Math.min(w, h) / 2.2;
     const r = (this.opts.dotSize ?? Math.max(1.5, s * 0.018)) * (this.opts.dotSize ? dpr : 1);
     const { pos, state, n, C } = this.sim;
+    const edge = this.showEdges ? this.sim.model.edgeChannel : -1;
+    g.strokeStyle = '#fff';
+    g.lineWidth = Math.max(1, r * 0.45);
     for (let i = 0; i < n; i++) {
       const col = (k: number) => Math.round(Math.min(1, Math.max(0, state[i * C + k])) * 255);
       g.fillStyle = `rgb(${col(0)},${col(1)},${col(2)})`;
       g.beginPath();
       g.arc(w / 2 + pos[2 * i] * s, h / 2 + pos[2 * i + 1] * s, r, 0, Math.PI * 2);
       g.fill();
+      // the particle's own learned "I am on the outline" signal; nothing here computes the border
+      if (edge >= 0 && state[i * C + edge] > 0.5) g.stroke();
     }
   }
 

@@ -25,7 +25,7 @@ Status key: **done** (in `main` or the open PR, with tests), **next**, **planned
 | 6D | GPU brain | WebGPU compute and WebGL2 backends, double-buffered, exact | done |
 | 6E | Creator demo | `smart.html`: grow, damage, heal, hidden channels, recovery readout | done |
 | 7 | 3D proof of concept | 16³ voxel NCA, viewer, PLY export | done: passes all gates (growth 0.98, recovery 0.96) |
-| — | Moving smart particles | Learned swarm: position + state, radius sensing | prototype: self-organises and re-forms; precise shapes not yet |
+| — | Moving smart particles | Learned swarm: position + state, radius sensing | prototype: assembles and holds the heart (0.81 coverage), re-forms, learns its own outline; outline not yet crisp everywhere |
 | 8 | Desktop studio alpha | Offline authoring GUI reusing the web engine | planned |
 | 9 | Creator workflow | 9a train from your own image in the browser; 9b one-script embed, video recording, embed code | done (timeline editing: planned) |
 | 10 | SDK hardening | Stable contracts, plugin trust boundaries, adapters (Three.js, React) | planned |
@@ -39,7 +39,7 @@ Status key: **done** (in `main` or the open PR, with tests), **next**, **planned
 1. **Merge Chapter 6–7** and publish `0.2.0-alpha.1` (needs an `NPM_TOKEN` repository secret, then `git tag v0.2.0-alpha.1 && git push --tags`).
 2. **Run `playground/bench.html`** on real hardware (your Windows machine, plus a laptop and a phone) and commit the JSON under `benchmarks/`.
 3. **A timeline** for scripted scenes (grow, then damage at step N, then morph), which pairs naturally with exact replay.
-4. **Make the moving swarm draw real shapes.** The prototype self-organises and repairs, but covers only half of its target. Next: a curriculum (assembly first, damage added gradually), a stronger colour term, more particles with spatial hashing, and rotation-free perception (see the research note, section 6).
+4. **Sharpen the moving swarm.** Run 7 draws the heart (0.81 coverage, holds, re-forms) and the particles learn which of them form the outline. Next: a crisp outline all round (outline weight and band, more particles with spatial hashing), other shapes, and rotation-free perception (see the research note, section 6).
 5. **Conditional models:** one network that can grow several shapes, chosen by a goal signal (Level 4 in the research doc).
 6. **Creator testing (Chapter 11):** show the heal demo to 10–15 web, 3D and creative-coding users, and record what they would actually use.
 7. **Desktop studio (Chapter 8)** only once 3 and 6 show what creators need. Start as a wrapper around the web engine.

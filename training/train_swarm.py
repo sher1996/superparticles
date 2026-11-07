@@ -1,6 +1,10 @@
 """Train a learned swarm (free-moving smart particles) to assemble a target.
 
     python training/train_swarm.py --target heart --particles 256 --steps 2000 --out training/runs/swarm-heart
+
+The shipped model (run 7) used:
+
+    python training/train_swarm.py --steps 2000 --damage-from 400 --bptt 16 --outline 1 --edge 0.5 --out training/runs/swarm-heart
 """
 
 import argparse
@@ -13,7 +17,7 @@ import numpy as np
 import torch
 
 from nca import lr_schedule
-from swarm import SPEED, Swarm, blob, coverage, hash_fire, loss_fn, scatter, target_points
+from swarm import SPEED, Swarm, blob, coverage, edge_accuracy, hash_fire, loss_fn, scatter, target_outline, target_points
 
 
 def main():
@@ -31,7 +35,14 @@ def main():
     ap.add_argument("--reseed", type=int, default=1, help="fresh blobs per batch")
     ap.add_argument("--window", type=int, default=8, help="score the shape over the last N steps, so it must hold still")
     ap.add_argument("--still", type=float, default=0.5, help="weight of the movement penalty over that window")
+    ap.add_argument("--damage-from", type=int, default=200, help="start scattering after this step (assemble first)")
+    ap.add_argument("--threads", type=int, default=0, help="CPU threads for torch (0 = default)")
+    ap.add_argument("--bptt", type=int, default=0, help="backprop through only the last N rollout steps (0 = all)")
+    ap.add_argument("--outline", type=float, default=0.0, help="loss weight: every outline point should have a particle near it")
+    ap.add_argument("--edge", type=float, default=0.0, help="loss weight: particles learn their own on-the-outline signal")
     args = ap.parse_args()
+    if args.threads:
+        torch.set_num_threads(args.threads)
 
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -41,6 +52,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     tpts, tcol = target_points(args.target)
+    outline = target_outline(args.target, tpts)
+    lkw = dict(outline=outline, w_outline=args.outline, w_edge=args.edge)
     model = Swarm()
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     pos_pool, st_pool = blob(args.pool, args.particles, gen)
@@ -65,20 +78,24 @@ def main():
         idx = torch.randint(0, args.pool, (args.batch,), generator=gen)
         pos, st = pos_pool[idx].clone(), st_pool[idx].clone()
         with torch.no_grad():
-            per, _ = loss_fn(pos, st, tpts, tcol)
+            per, _ = loss_fn(pos, st, tpts, tcol, **lkw)
             order = per.argsort(descending=True)
             pos, st, idx = pos[order], st[order], idx[order]
             p0, s0 = blob(args.reseed, args.particles, gen)
             pos[:args.reseed], st[:args.reseed] = p0, s0  # worst -> fresh blobs
-            if step > 200:
+            if step > args.damage_from:
                 pos[-1:] = scatter(pos[-1:], gen)        # best -> scattered (learn to reassemble)
         n = random.randint(*args.rollout)
         win_loss, win_ch, moved = 0.0, 0.0, 0.0
         for i in range(n):
             prev = pos
-            pos, st = model(pos, st)
+            if args.bptt and i < n - args.bptt:
+                with torch.no_grad():  # truncated backprop: only learn from the last steps
+                    pos, st = model(pos, st)
+            else:
+                pos, st = model(pos, st)
             if i >= n - args.window:
-                l, c = loss_fn(pos, st, tpts, tcol)
+                l, c = loss_fn(pos, st, tpts, tcol, **lkw)
                 win_loss, win_ch = win_loss + l.mean(), win_ch + c
                 moved = moved + ((pos - prev) ** 2).sum(-1).mean() / SPEED ** 2
         ch = win_ch / args.window
@@ -99,12 +116,17 @@ def main():
                 ep, es = blob(1, args.particles, torch.Generator().manual_seed(123))
                 for s_ in range(150):
                     ep, es = model(ep, es, hash_fire(args.particles, s_, 7))
-                score = coverage(ep, tpts).item()
-            print(json.dumps({"step": step, "eval_coverage_150": round(score, 4)}), flush=True)
-            log.write(json.dumps({"step": step, "eval_coverage_150": round(score, 4)}) + "\n")
+                area = coverage(ep, tpts).item()
+                edge = coverage(ep, outline[0]).item()
+                acc = edge_accuracy(ep, es, tpts, outline[1]).item()
+            # a recognisable shape needs both its area and its outline
+            score = (area + edge) / 2
+            rec = {"step": step, "eval_coverage_150": round(area, 4), "eval_outline_150": round(edge, 4), "eval_edge_acc": round(acc, 4)}
+            print(json.dumps(rec), flush=True)
+            log.write(json.dumps(rec) + "\n")
             if score > best_cov:
                 best_cov = score
-                torch.save({"model": model.state_dict(), "step": step, "config": config, "eval_coverage_150": score}, out / "best.pt")
+                torch.save({"model": model.state_dict(), "step": step, "config": config, "eval_coverage_150": area, "eval_outline_150": edge}, out / "best.pt")
         if step % 20 == 0 or step == args.steps - 1:
             rec = {"step": step, "loss": loss.item(), "chamfer": ch.mean().item(), "iters": n, "elapsed": round(time.time() - t0, 1)}
             log.write(json.dumps(rec) + "\n")
